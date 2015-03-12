@@ -42,7 +42,7 @@ def parse_config():
 	
 def client(remote_ip):
 	print 'Running client..'
-	global s_client, server_port, client_ID, msg_flag, dest_delay
+	global s_client, server_port, client_ID, msg_flag, dest_delay, message
 	try:
 		#create an AF_INET, STREAM socket (TCP)
 		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,8 +68,8 @@ def client(remote_ip):
 	message = None
 	msg_flag = 0
 	while 1:
-		print 'inside while'
-		if(msg_flag):
+		#print 'inside while'
+		if(message!=None):
 			print 'before delay'
 			#delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
 			#delay_t.start()
@@ -77,15 +77,13 @@ def client(remote_ip):
 			#delay_t.join()
 			print 'about to send'
 			try :
-				if(s_client.sendall(message) == None):
-					print 'Sent \"' + str(message) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
-				else:
-					print 'Send incomplete'
+				s_client.sendall(str(message))
+				print 'Sent \"' + str(message) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
 			except socket.error:
 				print 'Send failed'
 
 			## reset the message flag			 
-			message = None
+			message = ""
 			msg_flag = 0
 			dest_delay = None
 		#always try to receive
@@ -93,13 +91,13 @@ def client(remote_ip):
 		#delay_t.start()
 		#block until delay finishes executing
 		#delay_t.join()
-		try :
-			mailbox = s_client.recv(1024)
-			if(mailbox != None):
-				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
-		except socket.error:
-			print 'receive failed'
-		print 'Bottom of while'
+		#try :
+			#mailbox = s_client.recv(1024)
+			#if(mailbox != None):
+			#	print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
+		#except socket.error:
+			#print 'receive failed'
+		#print 'Bottom of while'
 	print 'Outside while'
 	s_client.close()
 
