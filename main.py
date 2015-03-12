@@ -11,12 +11,12 @@ import ConfigParser
 
 server_port = 0
 server_ip = "localhost"
-msg_flag = None
-message = None
 A = None
 B = None
 C = None
 D = None
+global message 
+message = None
 
 # Parses the configuration file
 def parse_config():
@@ -42,7 +42,7 @@ def parse_config():
 	
 def client(remote_ip):
 	print 'Running client..'
-	global s_client, server_port, client_ID, message, msg_flag, dest_delay
+	global s_client, server_port, client_ID, msg_flag, dest_delay
 	try:
 		#create an AF_INET, STREAM socket (TCP)
 		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,16 +64,17 @@ def client(remote_ip):
 		print("server point not found in configuration file")
 		print 'server_port: %d' % int(server_port)
 		sys.exit();
-	
+
+	message = None
+	msg_flag = 0
 	while 1:
 		print 'inside while'
-		s_client.sendall("Hi B")
-		if(msg_flag != None):
+		if(msg_flag):
 			print 'before delay'
-			delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
-			delay_t.start()
+			#delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
+			#delay_t.start()
 			#block until delay finishes executing
-			delay_t.join()
+			#delay_t.join()
 			print 'about to send'
 			try :
 				if(s_client.sendall(message) == None):
@@ -98,7 +99,8 @@ def client(remote_ip):
 				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
 		except socket.error:
 			print 'receive failed'
-
+		print 'Bottom of while'
+	print 'Outside while'
 	s_client.close()
 
 def delay(duration, g):
@@ -106,7 +108,7 @@ def delay(duration, g):
 
 
 while(1):
-	global dest_delay, client_ID, client_delay, message, msg_flag
+	global dest_delay, client_ID, client_delay, msg_flag
 	#global msg_flag
 	#global message
 	userInput = raw_input('>>> ');
@@ -127,6 +129,7 @@ while(1):
 
 	elif cmd[0] == "Send" or cmd[0] == "send":
 		#figure out max delay based on destination client
+		#make sure destination parameter is given
 		if(cmd[1] != None and cmd[2] != None):
 			if cmd[2] == 'A' :
 				dest_delay = int(A)

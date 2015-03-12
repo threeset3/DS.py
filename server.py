@@ -49,32 +49,24 @@ def server():
 	def clientThread(conn):
 		global done_reg, A_socket, B_socket, C_socket, D_socket
 		while 1:
-			if(1):
-				data = conn.recv(1024)
-				#client sent registration message
-				done_reg = 1; 
-				if(data == 'A'):
-					#store A's socket descriptor
-					A_socket = conn
-					print 'received A\'s regisration'
-				elif(data == 'B'):
-					#store B's socket descriptor
-					B_socket = conn
-					print 'received B\'s regisration'
-				elif(data == 'C'):
-					#store C's socket descriptor
-					C_socket = conn
-					print 'received C\'s regisration'
-				elif(data == 'D'):
-					#store D's socket descriptor
-					D_socket = conn
-					print 'received D\'s regisration'
-				else:
-					print 'client didn\'t register'
-					#done_reg = 0; 
-				
 			data = conn.recv(1024)
-			if data != "":
+			if(data == 'A'):
+				#store A's socket descriptor
+				A_socket = conn
+				print 'received A\'s regisration'
+			elif(data == 'B'):
+				#store B's socket descriptor
+				B_socket = conn
+				print 'received B\'s regisration'
+			elif(data == 'C'):
+				#store C's socket descriptor
+				C_socket = conn
+				print 'received C\'s regisration'
+			elif(data == 'D'):
+				#store D's socket descriptor
+				D_socket = conn
+				print 'received D\'s regisration'
+			elif data != "":
 				print 'Received \"' + data + '\" from server_port ' + str(server_port) + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
 				
 				#create a new socket to talk with the final destination client
