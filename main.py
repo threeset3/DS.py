@@ -39,8 +39,15 @@ def parse_config():
 	print 'B: %d' % int(B)
 	print 'C: %d' % int(C)
 	print 'D: %d' % int(D)
-	
-def client(remote_ip):
+def client_recv(remote_ip, socket_id):
+	while 1:
+		try :
+			mailbox = socket_id.recv(1024)
+			if(mailbox != None):
+				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
+		except socket.error:
+			print 'receive failed'
+def client_send(remote_ip):
 	print 'Running client..'
 	global s_client, server_port, client_ID, msg_flag, dest_delay, message
 	try:
@@ -64,18 +71,19 @@ def client(remote_ip):
 		print("server point not found in configuration file")
 		print 'server_port: %d' % int(server_port)
 		sys.exit();
+	
+	#thread for receiving from server
+	client_r = threading.Thread(target=client_recv, args = (server_ip, s_client))
+	client_r.start()
 
 	message = None
 	msg_flag = 0
 	while 1:
-		#print 'inside while'
 		if(message!=None):
-			print 'before delay'
 			#delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
 			#delay_t.start()
 			#block until delay finishes executing
 			#delay_t.join()
-			print 'about to send'
 			try :
 				s_client.sendall(str(message))
 				print 'Sent \"' + str(message) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
@@ -83,7 +91,7 @@ def client(remote_ip):
 				print 'Send failed'
 
 			## reset the message flag			 
-			message = ""
+			message = None
 			msg_flag = 0
 			dest_delay = None
 		#always try to receive
@@ -91,14 +99,6 @@ def client(remote_ip):
 		#delay_t.start()
 		#block until delay finishes executing
 		#delay_t.join()
-		#try :
-			#mailbox = s_client.recv(1024)
-			#if(mailbox != None):
-			#	print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
-		#except socket.error:
-			#print 'receive failed'
-		#print 'Bottom of while'
-	print 'Outside while'
 	s_client.close()
 
 def delay(duration, g):
@@ -119,9 +119,11 @@ while(1):
 				# parse the config file and store all the important data to global variables
 				parse_config()
 				print 'server_ip: %s' % server_ip
-				client_t = threading.Thread(target=client, args = ("localhost",))
-				#thread.start_new_thread(client, (server_ip,))
-				client_t.start()
+
+				# thread for sending to server
+				client_s = threading.Thread(target=client_send, args = ("localhost",))
+				client_s.start()
+
 			else:
 				print 'invalid client id'
 
