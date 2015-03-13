@@ -1,0 +1,14 @@
+[A] 
+delay = 3
+
+[server]
+port = 8000
+
+[B] 
+delay = 4
+
+[C] 
+delay = 5
+
+[D] 
+delay = 6
