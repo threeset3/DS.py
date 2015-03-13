@@ -8,7 +8,7 @@ import time
 import datetime
 import random
 import ConfigParser
-import queue
+import Queue
 
 server_port = None
 sock = [None] * 4
@@ -48,8 +48,8 @@ def clientThread(conn, unique):
 			buf = data.split(' ');
 
 			if(buf[1] == 'A' or buf[1] == 'B' or buf[1] == 'C' or buf[1] == 'D'):
-				if(sock[idx(data)] != None):
-					if(sock[idx(data)].sendall(buf[0]) == None):
+				if(sock[idx(buf[1])] != None):
+					if(sock[idx(buf[1])].sendall(buf[0]) == None):
 						print 'Sent \"' + str(buf[0]) + '\" to A ' + '. The system time is ' + str(datetime.datetime.now())
 					else:
 						print 'message send failure'
