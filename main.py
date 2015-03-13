@@ -41,12 +41,14 @@ def parse_config():
 	print 'C: %d' % int(C)
 	print 'D: %d' % int(D)
 def client_recv(remote_ip, socket_id):
+	global registered
 	while 1:
 		try :
 			mailbox = socket_id.recv(1024)
 			if(mailbox != None and mailbox != ""):
 				if(mailbox == "bye"):
 					print 'connection terminated'
+					registered = 0;
 					sys.exit()
 				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
 		except socket.error:
