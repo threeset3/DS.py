@@ -31,6 +31,7 @@ def parse_config():
 # Client receiving thread
 def clientThread(conn, unique):
 	global sock
+	client_name = None
 	while 1:
 		# continuously receive data from a client
 		data = conn.recv(1024)
@@ -39,10 +40,11 @@ def clientThread(conn, unique):
 		if(data == 'A' or data == 'B' or data == 'C' or data == 'D'):
 			sock[idx(data)] = conn
 			print unique + ' identified as ' + data
+			client_name = data
 
 		# if received actual data
 		elif data != "":
-			print 'Received \"' + data + '\" from server_port ' + str(server_port) + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
+			print 'Received \"' + data + '\" from ' + client_name + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
 
 			#create a new socket to talk with the final destination client
 			buf = data.split(' ');
