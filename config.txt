@@ -3,6 +3,7 @@ delay = 3
 
 [server]
 port = 8000
+ip = localhost
 
 [B] 
 delay = 4

@@ -12,6 +12,7 @@ import Queue
 
 server_port = None
 sock = [None] * 4
+global server_ip
 
 # return index of socket letter
 def idx(char):
@@ -19,12 +20,13 @@ def idx(char):
 
 # Parses the configuration file
 def parse_config():
+	global server_ip, server_port
 	configParser = ConfigParser.RawConfigParser()
 	ConfigFilePath = r'config.txt'
 	configParser.read(ConfigFilePath)
+	server_ip = configParser.get('server', 'ip')
 
 	#get the server port to use later
-	global server_port
 	server_port = configParser.get('server','port')
 	print "Server_port: %s" % server_port
 
@@ -51,8 +53,8 @@ def clientThread(conn, unique):
 
 			if(buf[1] == 'A' or buf[1] == 'B' or buf[1] == 'C' or buf[1] == 'D'):
 				if(sock[idx(buf[1])] != None):
-					if(sock[idx(buf[1])].sendall(buf[0]) == None):
-						print 'Sent \"' + str(buf[0]) + '\" to A ' + '. The system time is ' + str(datetime.datetime.now())
+					if(sock[idx(buf[1])].sendall(buf[0] + ' ' + client_name) == None):
+						print 'Sent \"' + str(buf[0]) + '\" to ' + buf[1] + '. The system time is ' + str(datetime.datetime.now())
 					else:
 						print 'message send failure'
 				else:
@@ -62,7 +64,7 @@ def clientThread(conn, unique):
 
 
 def server():
-	global s_server, server_port, sock
+	global s_server, server_port, sock, server_ip
 	s_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print 'Socket created'
 		 
@@ -70,7 +72,7 @@ def server():
 	try:
 		if(server_port):
 			s_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-			s_server.bind(('', int(server_port)))
+			s_server.bind((server_ip, int(server_port)))
 		else:
 			print 'Server port not given'
 			sys.exit()

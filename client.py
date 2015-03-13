@@ -10,7 +10,6 @@ import random
 import ConfigParser
 
 server_port = 0
-server_ip = "localhost"
 A = None
 B = None
 C = None
@@ -19,18 +18,21 @@ global message
 message = None
 global registered
 registered = 0
+global server_ip
+
 # Parses the configuration file
 def parse_config():
 	configParser = ConfigParser.RawConfigParser()
 	ConfigFilePath = r'config.txt'
 	configParser.read(ConfigFilePath)
-	global A, B, C, D, server_port
+	global A, B, C, D, server_port, server_ip, client_delay
 
 	#get the max delay of each server
 	A = configParser.get('A', 'delay')
 	B = configParser.get('B', 'delay')
 	C = configParser.get('C', 'delay')
 	D = configParser.get('D', 'delay')
+	server_ip = configParser.get('server', 'ip')
 	client_delay = configParser.get(client_ID, 'delay')
 
 	#get the server port to use later
@@ -40,8 +42,9 @@ def parse_config():
 	print 'B: %d' % int(B)
 	print 'C: %d' % int(C)
 	print 'D: %d' % int(D)
+
 def client_recv(remote_ip, socket_id):
-	global registered
+	global registered, client_delay
 	while 1:
 		try :
 			mailbox = socket_id.recv(1024)
@@ -50,9 +53,12 @@ def client_recv(remote_ip, socket_id):
 					print 'connection terminated'
 					registered = 0;
 					sys.exit()
-				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
+				else:
+					buf = mailbox.split(' ')
+				print 'Received \"' + buf[0] + '\" ' + 'from ' + buf[1] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
 		except socket.error:
 			print 'receive failed'
+
 def client_send(remote_ip):
 	print 'Running client..'
 	global s_client, server_port, client_ID, msg_flag, dest_delay, message
@@ -112,7 +118,7 @@ def delay(duration, g):
 
 
 while(1):
-	global dest_delay, client_ID, client_delay, msg_flag
+	global dest_delay, client_ID, client_delay, msg_flag, server_ip
 	#global msg_flag
 	#global message
 	userInput = raw_input('>>> ');
@@ -129,7 +135,7 @@ while(1):
 				print 'server_ip: %s' % server_ip
 
 				# thread for sending to server
-				client_s = threading.Thread(target=client_send, args = ("localhost",))
+				client_s = threading.Thread(target=client_send, args = (server_ip,))
 				client_s.start()
 				registered = 1
 			else:
