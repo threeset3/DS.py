@@ -17,7 +17,8 @@ C = None
 D = None
 global message 
 message = None
-
+global registered
+registered = 0
 # Parses the configuration file
 def parse_config():
 	configParser = ConfigParser.RawConfigParser()
@@ -43,7 +44,10 @@ def client_recv(remote_ip, socket_id):
 	while 1:
 		try :
 			mailbox = socket_id.recv(1024)
-			if(mailbox != None):
+			if(mailbox != None and mailbox != ""):
+				if(mailbox == "bye"):
+					print 'connection terminated'
+					sys.exit()
 				print 'Received \"' + mailbox + '\" ' + ', Max delay is ? s, ' + ' system time is ' + str(datetime.datetime.now())
 		except socket.error:
 			print 'receive failed'
@@ -111,10 +115,12 @@ while(1):
 	#global message
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
-
 	if cmd[0] == "run":
 		if cmd[1] == "client":
 			if(cmd[2] == 'A' or cmd[2] == 'B' or cmd[2] == 'C' or cmd[2] == 'D'):
+				if(registered == 1):
+					print 'already registered'
+					continue;
 				client_ID = cmd[2]
 				# parse the config file and store all the important data to global variables
 				parse_config()
@@ -123,7 +129,7 @@ while(1):
 				# thread for sending to server
 				client_s = threading.Thread(target=client_send, args = ("localhost",))
 				client_s.start()
-
+				registered = 1
 			else:
 				print 'invalid client id'
 
