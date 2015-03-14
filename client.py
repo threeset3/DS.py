@@ -169,12 +169,14 @@ while(1):
 		if(cmd[1] != None and cmd[2] != None):
 			if cmd[2] == 'A' :
 				print 'counter: %d' % counter
+				"""TESTING FIFO
 				if(counter == 0):
 					dest_delay = 10
 					counter = 1
 				else:
 					dest_delay = 2
-				#dest_delay = random.randrange(0, int(A), 1)
+				"""
+				dest_delay = random.randrange(0, int(A), 1)
 			elif cmd[2] == 'B':
 				dest_delay =  random.randrange(0, int(B), 1)
 			elif cmd[2] == 'C':
@@ -202,13 +204,4 @@ while(1):
 		continue
 	else:
 		print 'Invalid command'
-# every "send" command must put the message onto the queue
-# To handle the case where a previous message is still in the channel
-	#if there is a message in the channel, new message must be delivered right after the msg in the channel is delivered
-	# send thread compares current time against message delivery time
-		#If delivery time is greater than current time, put the thread to sleep
-		#if delivery time is less than current time, send right away
-#PROBLEMS
-#2nd message is not being sent
-	#while loop is not running for the second message
-		#problem with msg_flag?
+
