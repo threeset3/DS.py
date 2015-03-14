@@ -168,8 +168,8 @@ while(1):
 		#make sure destination parameter is given
 		if(cmd[1] != None and cmd[2] != None):
 			if cmd[2] == 'A' :
+				"""FIFO TEST CODE
 				print 'counter: %d' % counter
-				"""TESTING FIFO
 				if(counter == 0):
 					dest_delay = 10
 					counter = 1
