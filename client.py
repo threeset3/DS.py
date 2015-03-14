@@ -8,18 +8,11 @@ import time
 import datetime
 import random
 import ConfigParser
+import Queue
+from collections import namedtuple
 
-server_port = 0
-A = None
-B = None
-C = None
-D = None
-global message 
-message = None
-global registered
-registered = 0
-global server_ip
-
+global counter
+counter = 0
 # Parses the configuration file
 def parse_config():
 	configParser = ConfigParser.RawConfigParser()
@@ -59,9 +52,10 @@ def client_recv(remote_ip, socket_id):
 		except socket.error:
 			print 'receive failed'
 
+#This thread should not block
 def client_send(remote_ip):
 	print 'Running client..'
-	global s_client, server_port, client_ID, msg_flag, dest_delay, message
+	global s_client, server_port, client_ID, msg_flag, dest_delay, message, msg_queue, prev_msg
 	try:
 		#create an AF_INET, STREAM socket (TCP)
 		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -91,36 +85,64 @@ def client_send(remote_ip):
 	message = None
 	msg_flag = 0
 	while 1:
-		if(message!=None):
-			#delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
-			#delay_t.start()
-			#block until delay finishes executing
-			#delay_t.join()
-			try :
-				s_client.sendall(str(message))
-				print 'Sent \"' + str(message) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
-			except socket.error:
-				print 'Send failed'
-
+		if(msg_flag == 1):
+			if(not msg_queue.empty()):
+				top_msg = msg_queue.get()
+				msg_queue.task_done()
+				print 'queue NOT empty'
+			else:
+				print 'queue EMPTY'
+			print 'Sent \"' + str(top_msg[0]) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
+			#if msg shouldn't be delivered yet, activate delay'
+			print 'top_msg.del_time: %d' % top_msg.del_time
+			print 'time.time()2: %d' % time.time()
+			if(top_msg.del_time > time.time()):
+				print 'HAVE TO WAIT'
+				if(prev_msg != None and prev_msg.del_time > top_msg.del_time):
+					top_msg = msg_struct(msg_field = top_msg[0], del_time = prev_msg[1], queue_time = 0)
+				delay_t = threading.Thread(target=delay, args = (top_msg.del_time - time.time(), s_client, top_msg))
+				delay_t.start()
+			else:
+				print 'DON\' HAVE TO WAIT'
+				try :
+					s_client.sendall(str(top_msg[0]))
+				except socket.error:
+					print 'Send failed'
 			## reset the message flag			 
 			message = None
 			msg_flag = 0
 			dest_delay = None
-		#always try to receive
-		#delay_t = threading.Thread(target=delay, args = (client_delay, 0))
-		#delay_t.start()
-		#block until delay finishes executing
-		#delay_t.join()
 	s_client.close()
 
-def delay(duration, g):
-	time.sleep(duration * random.random())
+def delay(delay_time, send_socket, msg):
+	global prev_msg
+	prev_msg = msg
+	time.sleep(delay_time)
+	try :
+		send_socket.sendall(str(msg[0]))
+	except socket.error:
+		print 'Send failed'
 
+def init_vars():
+	global msg_queue, msg_struct, message, A, B, C, D, registered, server_ip, server_port
+	global prev_msg
+	#queue of size inifinite
+	msg_queue = Queue.Queue(maxsize=0)
+	#structure containing info about message to send
+	msg_struct = namedtuple("msg_struct", "msg_field del_time queue_time")
+	message = None
+	server_port = 0
+	A = None
+	B = None
+	C = None
+	D = None
+	registered = 0
+	prev_msg = None
 
+init_vars()
 while(1):
-	global dest_delay, client_ID, client_delay, msg_flag, server_ip
-	#global msg_flag
-	#global message
+	global dest_delay, client_ID, client_delay, msg_flag, server_ip, msg_queue, msg_struct
+
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
 	if cmd[0] == "run":
@@ -146,18 +168,30 @@ while(1):
 		#make sure destination parameter is given
 		if(cmd[1] != None and cmd[2] != None):
 			if cmd[2] == 'A' :
-				dest_delay = int(A)
+				print 'counter: %d' % counter
+				if(counter == 0):
+					dest_delay = 10
+					counter = 1
+				else:
+					dest_delay = 2
+				#dest_delay = random.randrange(0, int(A), 1)
 			elif cmd[2] == 'B':
-				dest_delay = int(B)
+				dest_delay =  random.randrange(0, int(B), 1)
 			elif cmd[2] == 'C':
-				dest_delay = int(C)
+				dest_delay =  random.randrange(0, int(C), 1)
 			elif cmd[2] == 'D':
-				dest_delay = int(D)
+				dest_delay =  random.randrange(0, int(D), 1)
 			else:
 				dest_delay = None
 				print("invalid destination")
 			message = cmd[1] + ' ' + cmd[2]
 			print 'my message: %s' % message
+
+			#fill the namedtuple for the new message and enqueue
+			msg_tuple = msg_struct(msg_field = message, del_time = (time.time() + float(dest_delay)), queue_time = datetime.datetime.now())
+			print 'time.time() : %d' % time.time()
+			print 'de_time: %d' % (time.time() + dest_delay)
+			msg_queue.put(msg_tuple)
 			msg_flag = 1
 		else:
 			print 'arguments not given!'
@@ -168,4 +202,13 @@ while(1):
 		continue
 	else:
 		print 'Invalid command'
-
+# every "send" command must put the message onto the queue
+# To handle the case where a previous message is still in the channel
+	#if there is a message in the channel, new message must be delivered right after the msg in the channel is delivered
+	# send thread compares current time against message delivery time
+		#If delivery time is greater than current time, put the thread to sleep
+		#if delivery time is less than current time, send right away
+#PROBLEMS
+#2nd message is not being sent
+	#while loop is not running for the second message
+		#problem with msg_flag?
