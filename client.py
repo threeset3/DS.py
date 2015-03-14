@@ -96,16 +96,20 @@ def client_send(remote_ip):
 			#if msg shouldn't be delivered yet, activate delay'
 			print 'top_msg.del_time: %d' % top_msg.del_time
 			print 'time.time()2: %d' % time.time()
+		
+			#if there is a message in the channel, current message should be delivered after
+			if(prev_msg != None and prev_msg.del_time > top_msg.del_time):
+				top_msg = msg_struct(msg_field = top_msg[0], del_time = prev_msg[1], queue_time = 0)
+			#current message becomes previous for the next round
+			prev_msg = top_msg
 			if(top_msg.del_time > time.time()):
-				print 'HAVE TO WAIT'
-				if(prev_msg != None and prev_msg.del_time > top_msg.del_time):
-					top_msg = msg_struct(msg_field = top_msg[0], del_time = prev_msg[1], queue_time = 0)
 				delay_t = threading.Thread(target=delay, args = (top_msg.del_time - time.time(), s_client, top_msg))
 				delay_t.start()
 			else:
 				print 'DON\' HAVE TO WAIT'
 				try :
-					s_client.sendall(str(top_msg[0]))
+					if(s_client.sendall(str(top_msg[0])) != None):
+						print 'MESSAGE LOST!'
 				except socket.error:
 					print 'Send failed'
 			## reset the message flag			 
@@ -115,8 +119,6 @@ def client_send(remote_ip):
 	s_client.close()
 
 def delay(delay_time, send_socket, msg):
-	global prev_msg
-	prev_msg = msg
 	time.sleep(delay_time)
 	try :
 		send_socket.sendall(str(msg[0]))
