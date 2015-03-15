@@ -1,0 +1,20 @@
+Linearizibility
+
+option 1:
+	- Server keeps a dictionary for each client
+	- Client writes to it / reads from it through messages
+	- insert <key> <value> <model>
+		* client forwards whole command to Server
+		* server broadcasts message and modifies dictionarys appropriately
+
+option 2:
+	- Client keeps its own dictionary
+	- 
+
+--------------------------------------?????-----------------------------------------
+Q1. does every client have their own dictionary?
+					OR
+	Server contains the dictionaries for the clients?
+
+Server can contain the dictionaries because delay happens from client to server
+	write operation will still result in different time stamps for different clients 

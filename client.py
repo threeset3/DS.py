@@ -131,8 +131,14 @@ def delay(delay_time, send_socket, msg):
 	update key if key already exists
 """
 def insert_handler(key, value, model):
-	print 'insert_handler called'
+	write = key + ' ' + value + ' ' + model
 
+	#the messages will simulate writing to multiple replicas due to channel delay
+	send_handler(write, 'A')
+	send_handler(write, 'B')
+	send_handler(write, 'C')
+	send_handler(write, 'D')
+	
 #Update the value for the specified key
 def update_handler(key, value, model):
 	print 'update_handler called'
@@ -142,6 +148,7 @@ def get_handler(key, model):
 #Delete info related to key from all replicas
 def delete_handler(key):
 	print "delete_handler called"
+
 def send_handler(msg_input, send_dest):
 	global dest_delay, msg_flag, msg_queue, msg_struct
 	if send_dest == 'A' :
@@ -216,6 +223,7 @@ while(1):
 	elif cmd[0] == "Send" or cmd[0] == "send":
 		#make sure parameters are given 
 		if(cmd[1] != None and cmd[2] != None):
+			#cmd[1]: message ; cmd[2]: destination client
 			send_handler(cmd[1], cmd[2])
 		else:
 			print 'arguments not given!'
@@ -237,4 +245,5 @@ while(1):
 		continue
 	else:
 		print 'Invalid command'
-
+# QUESTIONS / CONCERNS
+	#Should there be delay if A sends message to A?
