@@ -9,17 +9,6 @@ import datetime
 import random
 import ConfigParser
 
-server_port = 0
-A = None
-B = None
-C = None
-D = None
-global message 
-message = None
-global registered
-registered = 0
-global server_ip
-
 # Parses the configuration file
 def parse_config():
 	configParser = ConfigParser.RawConfigParser()
@@ -116,7 +105,20 @@ def client_send(remote_ip):
 def delay(duration, g):
 	time.sleep(duration * random.random())
 
+def init_vars():
+	global client_replica, server_port, registered, server_ip, message
+	server_port = 0
+	A = None
+	B = None
+	C = None
+	D = None
+	message = None
+	registered = 0
 
+	#local replica
+	client_replica = [{}] * 4
+	
+init_vars()
 while(1):
 	global dest_delay, client_ID, client_delay, msg_flag, server_ip
 	#global msg_flag
