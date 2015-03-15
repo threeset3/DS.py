@@ -102,6 +102,8 @@ def client_send(remote_ip):
 				top_msg = msg_struct(msg_field = top_msg[0], del_time = prev_msg[1], queue_time = 0)
 			#current message becomes previous for the next round
 			prev_msg = top_msg
+
+			#sleep if delivery time hasn't arrived yet
 			if(top_msg.del_time > time.time()):
 				delay_t = threading.Thread(target=delay, args = (top_msg.del_time - time.time(), s_client, top_msg))
 				delay_t.start()
@@ -124,7 +126,52 @@ def delay(delay_time, send_socket, msg):
 		send_socket.sendall(str(msg[0]))
 	except socket.error:
 		print 'Send failed'
+""" 
+	Create a new key with the specified value
+	update key if key already exists
+"""
+def insert_handler(key, value, model):
+	print 'insert_handler called'
 
+#Update the value for the specified key
+def update_handler(key, value, model):
+	print 'update_handler called'
+#Return the value corresponding to the given key
+def get_handler(key, model):
+	print 'get_handler called'
+#Delete info related to key from all replicas
+def delete_handler(key):
+	print "delete_handler called"
+def send_handler(msg_input, send_dest):
+	global dest_delay, msg_flag, msg_queue, msg_struct
+	if send_dest == 'A' :
+		"""FIFO TEST CODE
+		print 'counter: %d' % counter
+		if(counter == 0):
+			dest_delay = 10
+			counter = 1
+		else:
+			dest_delay = 2
+		"""
+		dest_delay = random.randrange(0, int(A), 1)
+	elif send_dest == 'B':
+		dest_delay =  random.randrange(0, int(B), 1)
+	elif send_dest == 'C':
+		dest_delay =  random.randrange(0, int(C), 1)
+	elif send_dest == 'D':
+		dest_delay =  random.randrange(0, int(D), 1)
+	else:
+		dest_delay = None
+		print("invalid destination")
+	message = msg_input + ' ' + send_dest
+	print 'my message: %s' % message
+
+	#fill the namedtuple for the new message and enqueue
+	msg_tuple = msg_struct(msg_field = message, del_time = (time.time() + float(dest_delay)), queue_time = datetime.datetime.now())
+	print 'time.time() : %d' % time.time()
+	print 'de_time: %d' % (time.time() + dest_delay)
+	msg_queue.put(msg_tuple)
+	msg_flag = 1
 def init_vars():
 	global msg_queue, msg_struct, message, A, B, C, D, registered, server_ip, server_port
 	global prev_msg
@@ -140,11 +187,12 @@ def init_vars():
 	D = None
 	registered = 0
 	prev_msg = None
-
+#Program execution starts HERE!!!
 init_vars()
 while(1):
 	global dest_delay, client_ID, client_delay, msg_flag, server_ip, msg_queue, msg_struct
 
+	#-----Run client <client-id>-----
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
 	if cmd[0] == "run":
@@ -164,42 +212,25 @@ while(1):
 				registered = 1
 			else:
 				print 'invalid client id'
-
+	#-----Send Message Destination-----
 	elif cmd[0] == "Send" or cmd[0] == "send":
-		#figure out max delay based on destination client
-		#make sure destination parameter is given
+		#make sure parameters are given 
 		if(cmd[1] != None and cmd[2] != None):
-			if cmd[2] == 'A' :
-				"""FIFO TEST CODE
-				print 'counter: %d' % counter
-				if(counter == 0):
-					dest_delay = 10
-					counter = 1
-				else:
-					dest_delay = 2
-				"""
-				dest_delay = random.randrange(0, int(A), 1)
-			elif cmd[2] == 'B':
-				dest_delay =  random.randrange(0, int(B), 1)
-			elif cmd[2] == 'C':
-				dest_delay =  random.randrange(0, int(C), 1)
-			elif cmd[2] == 'D':
-				dest_delay =  random.randrange(0, int(D), 1)
-			else:
-				dest_delay = None
-				print("invalid destination")
-			message = cmd[1] + ' ' + cmd[2]
-			print 'my message: %s' % message
-
-			#fill the namedtuple for the new message and enqueue
-			msg_tuple = msg_struct(msg_field = message, del_time = (time.time() + float(dest_delay)), queue_time = datetime.datetime.now())
-			print 'time.time() : %d' % time.time()
-			print 'de_time: %d' % (time.time() + dest_delay)
-			msg_queue.put(msg_tuple)
-			msg_flag = 1
+			send_handler(cmd[1], cmd[2])
 		else:
 			print 'arguments not given!'
-
+	# -----insert Key Value Model-----
+	elif cmd[0] == "insert" and cmd1[1] != None and cmd[2] != None and cmd[3] != None:
+		insert_handler(cmd[1], cmd[2], cmd[3])
+	# -----Update Key Value Model-----
+	elif cmd[0] =="update" and cmd1[1] != None and cmd[2] != None and cmd[3] != None:
+		update_handler(cmd[1], cmd[2], cmd[3])
+	# -----get Key Value-----
+	elif cmd[0] =="get" and cmd1[1] != None and cmd[2] != None:
+		get_handler(cmd[1], cmd[2])
+	# -----get Key-----
+	elif cmd[0] =="delete" and cmd[1] != None:
+		delete_handler(cmd[1])
 	elif cmd[0] == "quit":
 		break
 	elif userInput == "":
