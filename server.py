@@ -11,7 +11,7 @@ import ConfigParser
 import Queue
 
 def init_vars():
-	global server_port, sock, server_ip,
+	global server_port, sock, server_ip, client_replica
 	server_port = None
 	sock = [None] * 4
 
@@ -36,7 +36,7 @@ def parse_config():
 
 # Client receiving thread
 def clientThread(conn, unique):
-	global sock
+	global sock, client_replica
 	client_name = None
 	while 1:
 		# continuously receive data from a client
@@ -65,11 +65,13 @@ def clientThread(conn, unique):
 				else:
 					print 'Client ' + data + 'doesn\'t exist'
 			#insert key-value pair to corresponding dictionaries
-			elif(buf[0] == "insert" and buf[1] != None and buf[2] != none and buf[3] != None):
+			elif(buf[0] == "insert" and buf[1] != None and buf[2] != None and buf[3] != None):
+				print 'performing insert operation'
 				if(buf[3] == "1"): # Linearizibility
 					if(sock[idx(buf[4])] != None):
 						#buf[1]: key; buf[2]: value
 						client_replica[idx(buf[4])][buf[1]] = buf[2]
+						print 'key-value stored successfully!'
 					else:
 						print 'Client ' + data + 'doesn\'t exist'
 			else:

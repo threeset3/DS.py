@@ -130,15 +130,15 @@ def delay(delay_time, send_socket, msg):
 	Create a new key with the specified value
 	update key if key already exists
 """
-def insert_handler(key, value, model):
-	write = key + ' ' + value + ' ' + model
+def insert_handler(command, key, value, model):
+	write = command + ' ' + key + ' ' + value + ' ' + model
 
 	#the messages will simulate writing to multiple replicas due to channel delay
 	send_handler(write, 'A')
 	send_handler(write, 'B')
 	send_handler(write, 'C')
 	send_handler(write, 'D')
-	
+
 #Update the value for the specified key
 def update_handler(key, value, model):
 	print 'update_handler called'
@@ -176,7 +176,8 @@ def send_handler(msg_input, send_dest):
 	#fill the namedtuple for the new message and enqueue
 	msg_tuple = msg_struct(msg_field = message, del_time = (time.time() + float(dest_delay)), queue_time = datetime.datetime.now())
 	print 'time.time() : %d' % time.time()
-	print 'de_time: %d' % (time.time() + dest_delay)
+	print 'dest_delay: %s' % str(dest_delay) 
+	#print 'del_time: %d' % (time.time() + float(dest_delay))
 	msg_queue.put(msg_tuple)
 	msg_flag = 1
 def init_vars():
@@ -228,8 +229,8 @@ while(1):
 		else:
 			print 'arguments not given!'
 	# -----insert Key Value Model-----
-	elif cmd[0] == "insert" and cmd1[1] != None and cmd[2] != None and cmd[3] != None:
-		insert_handler(cmd[1], cmd[2], cmd[3])
+	elif cmd[0] == "insert" and cmd[1] != None and cmd[2] != None and cmd[3] != None:
+		insert_handler(cmd[0], cmd[1], cmd[2], cmd[3])
 	# -----Update Key Value Model-----
 	elif cmd[0] =="update" and cmd1[1] != None and cmd[2] != None and cmd[3] != None:
 		update_handler(cmd[1], cmd[2], cmd[3])
