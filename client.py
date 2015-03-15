@@ -6,31 +6,21 @@ import threading
 import thread
 import time
 import datetime
-import random
 import ConfigParser
 
 # Parses the configuration file
 def parse_config():
+	global client_delay, server_port, server_ip
 	configParser = ConfigParser.RawConfigParser()
 	ConfigFilePath = r'config.txt'
 	configParser.read(ConfigFilePath)
-	global A, B, C, D, server_port, server_ip, client_delay
 
-	#get the max delay of each server
-	A = configParser.get('A', 'delay')
-	B = configParser.get('B', 'delay')
-	C = configParser.get('C', 'delay')
-	D = configParser.get('D', 'delay')
 	server_ip = configParser.get('server', 'ip')
 	client_delay = configParser.get(client_ID, 'delay')
 
 	#get the server port to use later
 	server_port = configParser.get('server','port')
 	print 'server_port: %d' % int(server_port)
-	print 'A: %d' % int(A)
-	print 'B: %d' % int(B)
-	print 'C: %d' % int(C)
-	print 'D: %d' % int(D)
 
 def client_recv(remote_ip, socket_id):
 	global registered, client_delay
@@ -50,7 +40,7 @@ def client_recv(remote_ip, socket_id):
 
 def client_send(remote_ip):
 	print 'Running client..'
-	global s_client, server_port, client_ID, msg_flag, dest_delay, message
+	global s_client, server_port, client_ID, msg_flag, message
 	try:
 		#create an AF_INET, STREAM socket (TCP)
 		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -81,10 +71,6 @@ def client_send(remote_ip):
 	msg_flag = 0
 	while 1:
 		if(message!=None):
-			#delay_t = threading.Thread(target=delay, args = (dest_delay, 0))
-			#delay_t.start()
-			#block until delay finishes executing
-			#delay_t.join()
 			try :
 				s_client.sendall(str(message))
 				print 'Sent \"' + str(message) + '\" to server_port ' + str(server_port) + '. The system time is ' + str(datetime.datetime.now())
@@ -94,35 +80,29 @@ def client_send(remote_ip):
 			## reset the message flag			 
 			message = None
 			msg_flag = 0
-			dest_delay = None
-		#always try to receive
-		#delay_t = threading.Thread(target=delay, args = (client_delay, 0))
-		#delay_t.start()
-		#block until delay finishes executing
-		#delay_t.join()
 	s_client.close()
-
-def delay(duration, g):
-	time.sleep(duration * random.random())
 
 def init_vars():
 	global client_replica, server_port, registered, server_ip, message
 	server_port = 0
-	A = None
-	B = None
-	C = None
-	D = None
 	message = None
 	registered = 0
 
 	#local replica
 	client_replica = [{}] * 4
-	
+def send_handler(msg_input, send_dest):
+	global msg_flag, msg_queue, msg_struct, message
+	if cmd[2] == 'A' or cmd[2] =='B' or cmd[2] == 'C' or cmd[2] == 'D':
+		message = msg_input + ' ' + send_dest
+		print 'my message: %s' % message
+		msg_flag = 1
+	else:
+		print("invalid destination")
+
+#Program execution starts here!
 init_vars()
 while(1):
-	global dest_delay, client_ID, client_delay, msg_flag, server_ip
-	#global msg_flag
-	#global message
+	global client_ID, client_delay, msg_flag, server_ip
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
 	if cmd[0] == "run":
@@ -142,28 +122,12 @@ while(1):
 				registered = 1
 			else:
 				print 'invalid client id'
-
 	elif cmd[0] == "Send" or cmd[0] == "send":
-		#figure out max delay based on destination client
 		#make sure destination parameter is given
 		if(cmd[1] != None and cmd[2] != None):
-			if cmd[2] == 'A' :
-				dest_delay = int(A)
-			elif cmd[2] == 'B':
-				dest_delay = int(B)
-			elif cmd[2] == 'C':
-				dest_delay = int(C)
-			elif cmd[2] == 'D':
-				dest_delay = int(D)
-			else:
-				dest_delay = None
-				print("invalid destination")
-			message = cmd[1] + ' ' + cmd[2]
-			print 'my message: %s' % message
-			msg_flag = 1
+			send_handler(cmd[1], cmd[2])
 		else:
 			print 'arguments not given!'
-
 	elif cmd[0] == "quit":
 		break
 	elif userInput == "":
