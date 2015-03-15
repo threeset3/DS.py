@@ -10,6 +10,7 @@ import random
 import ConfigParser
 import Queue
 from collections import namedtuple
+from types import *
 
 global counter
 counter = 0
@@ -176,8 +177,11 @@ def send_handler(msg_input, send_dest):
 	#fill the namedtuple for the new message and enqueue
 	msg_tuple = msg_struct(msg_field = message, del_time = (time.time() + float(dest_delay)), queue_time = datetime.datetime.now())
 	print 'time.time() : %d' % time.time()
-	print 'dest_delay: %s' % str(dest_delay) 
-	#print 'del_time: %d' % (time.time() + float(dest_delay))
+	if type(dest_delay) is not IntType:
+		print ' dest_delay is not a number'
+		print 'dest_delay: %s' % str(dest_delay)
+		sys.exit()
+	print 'del_time: %d' % (time.time() + float(dest_delay))
 	msg_queue.put(msg_tuple)
 	msg_flag = 1
 def init_vars():
