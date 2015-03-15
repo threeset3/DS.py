@@ -1,20 +1,16 @@
-Linearizibility
+Move delay&FIFO to server 
+Dictionary to client
 
-option 1:
-	- Server keeps a dictionary for each client
-	- Client writes to it / reads from it through messages
-	- insert <key> <value> <model>
-		* client forwards whole command to Server
-		* server broadcasts message and modifies dictionarys appropriately
+Linearizability
+	https://piazza.com/class/i4k9by9yflljz?cid=273
 
-option 2:
-	- Client keeps its own dictionary
-	- 
+Sequential consistency
+Eventual consistency
+Inconsistency repair
 
---------------------------------------?????-----------------------------------------
-Q1. does every client have their own dictionary?
-					OR
-	Server contains the dictionaries for the clients?
+Commands
+	show-all
+	delay 
+	search
 
-Server can contain the dictionaries because delay happens from client to server
-	write operation will still result in different time stamps for different clients 
+Accept input files 
