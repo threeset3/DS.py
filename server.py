@@ -127,8 +127,14 @@ def clientThread(conn, unique):
 				print '[[ Client ' + buf[1] + 'doesn\'t exist. Do \"run client ' + buf[1] + '\" first.]]'
 				continue
 	
-			# add the message to ORIGIN/SENDER's queue
+			# build message object
 			myMsg = Msg(buf[0], buf[1], delay[client_idx])
+
+			# if sent to self, no delay
+			if buf[1] == client_name:
+				myMsg.delay = 0
+
+			# attach msg to ORIGIN/SENDER's queue
 			queue[client_idx].append(myMsg)
 
 
