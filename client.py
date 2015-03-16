@@ -96,6 +96,7 @@ def client_send(remote_ip):
 """
 def cmd_handler():
 	global cmd_in_progress, cmd_queue
+
 	#execute only when no operation is executing and there are operations to execute
 	while(cmd_in_progress != 1 and (not cmd_queue.empty())):
 		top_command = cmd_queue.get()
@@ -110,6 +111,7 @@ def cmd_handler():
 
 def insert_handler(command, key, value, model):
 	global client_replica
+
 	if(model == 1): #linearizibility
 		print 'insert linearizibility model'
 		print 'before insert: ' + client_replica
@@ -134,6 +136,7 @@ def insert_handler(command, key, value, model):
 #Update the value for the specified key
 def update_handler(command, key, value, model):
 	global client_replica
+
 	print 'update_handler called'
 	print 'before update: ' + client_replica
 	if(model == 1): #linearizibility
@@ -180,19 +183,6 @@ def delete_handler(command, key):
 	#indicate that an operation is in progress
 	cmd_in_progress = 1
 	print 'deleted replica: ' + client_replica
-def init_vars():
-	global client_replica, server_port, registered, server_ip, message, cmd_queue
-	global cmd_in_progress, cmd_struct
-
-	#queue of commands
-	cmd_queue = Queue.Queue(maxsize=0)
-	cmd_in_progress = 0
-	server_port = 0
-	message = None
-	registered = 0
-	cmd_struct = namedtuple("command", "key value model")
-	#local replica
-	client_replica = {}
 
 def send_handler(msg_input, send_dest):
 	global msg_flag, msg_queue, msg_struct, message
@@ -203,6 +193,19 @@ def send_handler(msg_input, send_dest):
 	else:
 		print("invalid destination")
 
+def init_vars():
+	global client_replica, server_port, registered, server_ip, message, cmd_queue
+	global cmd_in_progress, cmd_struct
+
+	#queue of commands
+	cmd_queue = Queue.Queue(maxsize=0)
+	cmd_in_progress = 0
+	server_port = 0
+	message = None
+	registered = 0
+	cmd_struct = namedtuple("cmd_struct_name", "command key value model")
+	#local replica
+	client_replica = {}
 #Program execution starts here!
 init_vars()
 while(1):
@@ -234,6 +237,7 @@ while(1):
 		send_handler(cmd[1], cmd[2])
 	# -----put the commands into a queue
 	elif cmd[0] == "insert" or cmd[0] == "update" and (cmd[1] != None and cmd[2] != None and cmd[3] != None):
+		print 'insert input'
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = cmd[2], model = cmd[3])
 		cmd_queue.put(cmd_tuple)
 	elif cmd[0] == "get" and ( cmd[1] != None and cmd[2] != None):
