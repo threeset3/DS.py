@@ -28,11 +28,11 @@ def parse_config():
 def idx(char):
 	return ord(char[0].lower()) - 98
 
-def client_recv(remote_ip, socket_id):
-	global registered, client_delay, cmd_in_progress
+def client_recv(remote_ip, sock_id):
+	global registered, client_delay, cmd_in_progress, s_client
 	while 1:
 		try :
-			mailbox = socket_id.recv(1024)
+			mailbox = s_client.recv(1024)
 			if(mailbox != None and mailbox != ""):
 				if(mailbox == "bye"):
 					print 'connection terminated'
@@ -57,7 +57,7 @@ def client_send(remote_ip):
 	except socket.error, msg:
 		print 'Failed to create socket. Error code: ' + str(msg[0]) + ' , Error message : ' + msg[1]
 		sys.exit();
-	 
+
 	print 'Client Socket Created'
 	if(int(server_port)):
 		s_client.connect((remote_ip , int(server_port)))
@@ -72,6 +72,9 @@ def client_send(remote_ip):
 		print("server point not found in configuration file")
 		print 'server_port: %d' % int(server_port)
 		sys.exit();
+	#thread for receiving from server
+	client_r = threading.Thread(target=client_recv, args = (server_ip, s_client))
+	client_r.start()
 	message = None
 	msg_flag = 0
 	while 1:
@@ -94,7 +97,7 @@ def client_send(remote_ip):
 def cmd_handler():
 	global cmd_in_progress, cmd_queue
 	#execute only when no operation is executing and there are operations to execute
-	while(cmd_in_progress != 1 and (not cmd_queue.empty()))
+	while(cmd_in_progress != 1 and (not cmd_queue.empty())):
 		top_command = cmd_queue.get()
 		if(top_command.command == "insert"):
 			insert_handler(top_command[0], top_command[1], top_command[2], top_command[3])
@@ -112,7 +115,7 @@ def insert_handler(command, key, value, model):
 		print 'before insert: ' + client_replica
 		#insert key-value to local replica
 		client_replica[key] = value
-			print 'key-value stored successfully!'
+		print 'key-value stored successfully!'
 		#notify other clients to insert new key-value pair
 		insert_msg = command + ' ' + key + ' ' + value + ' ' + model
 		send_handler(insert_msg, 'A')
@@ -139,7 +142,7 @@ def update_handler(command, key, value, model):
 		if(client_replica[key] != None):
 			#update local replica
 			client_replica[key] = value
-				print 'key-value updated successfully!'
+			print 'key-value updated successfully!'
 			#notify other clients to update their local replica
 			update_msg = command + ' ' + key + ' ' + value + ' ' + model
 			send_handler(update_msg, 'A')
@@ -164,7 +167,7 @@ def delete_handler(command, key):
 	print "delete_handler called"
 	print 'before delete: ' + client_replica
 	#delete key from local replica
-	if(client_replica.has_key(key):
+	if(client_replica.has_key(key)):
 		del client_replica[key]
 	
 	#tell other clients to delete the given key from their local replica
@@ -203,7 +206,7 @@ def send_handler(msg_input, send_dest):
 #Program execution starts here!
 init_vars()
 while(1):
-	global client_ID, client_delay, msg_flag, server_ip, cmd_struct, cmd_queue
+	global client_ID, s_client, client_delay, msg_flag, server_ip, cmd_struct, cmd_queue
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
 	if cmd[0] == "run":
@@ -221,21 +224,16 @@ while(1):
 				client_s = threading.Thread(target=client_send, args = (server_ip,))
 				client_s.start()
 
-				#thread for receiving from server
-				client_r = threading.Thread(target=client_recv, args = (server_ip, s_client))
-				client_r.start()
-
 				#thread for executing operations
-				cmd_thread = threading.Thread(target=cmd_handler, args= (,))
+				cmd_thread = threading.Thread(target=cmd_handler, args= ())
 				cmd_thread.start()
-
 				registered = 1
 			else:
 				print 'invalid client id'
 	elif cmd[0] == "Send" or cmd[0] == "send" and (cmd[1] != None and cmd[2] != None):
 		send_handler(cmd[1], cmd[2])
 	# -----put the commands into a queue
-	elif cmd[0] == "insert" or cmd[0] == "update" and (cmd[1] != None and cmd[2] != None cmd[3] != None):
+	elif cmd[0] == "insert" or cmd[0] == "update" and (cmd[1] != None and cmd[2] != None and cmd[3] != None):
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = cmd[2], model = cmd[3])
 		cmd_queue.put(cmd_tuple)
 	elif cmd[0] == "get" and ( cmd[1] != None and cmd[2] != None):
