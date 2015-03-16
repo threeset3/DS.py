@@ -166,6 +166,7 @@ def delete_handler(command, key):
 	#delete key from local replica
 	if(client_replica.has_key(key):
 		del client_replica[key]
+	
 	#tell other clients to delete the given key from their local replica
 	#notify other clients to update their local replica
 	delete_msg = command + ' ' + key
@@ -179,6 +180,7 @@ def delete_handler(command, key):
 def init_vars():
 	global client_replica, server_port, registered, server_ip, message, cmd_queue
 	global cmd_in_progress, cmd_struct
+
 	#queue of commands
 	cmd_queue = Queue.Queue(maxsize=0)
 	cmd_in_progress = 0
