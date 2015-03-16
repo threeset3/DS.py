@@ -3,9 +3,12 @@ Dictionary to client
 
 Linearizability
 	https://piazza.com/class/i4k9by9yflljz?cid=273
-
+	delay to self
+	Broadcast
+		- server send to everyone OR client send 4 times to all clients
 Sequential consistency
 Eventual consistency
+	no delay to self
 Inconsistency repair
 
 Commands
@@ -14,3 +17,28 @@ Commands
 	search
 
 Accept input files 
+
+
+
+
+************Message format of special operations***********
+
+insert / update:
+"insert/update <key> <value> <model> <source> <dest>"
+get:
+"get <key> <model> <source> <dest>"
+delete:
+"delete <key> <source> <dest>"
+ACK:
+"ACK <requested operation message>"
+
+*************
+Server will receive ACKs from different operations --> need a way to differentiate the ACKs
+
+	-- dict{"message_id" : "ACK_counter"}
+Problem
+	Final ACK is being sent to all the clients instead of just the requester
+
+********************cmd_in_progress Format*************
+
+"command key"
