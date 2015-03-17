@@ -100,7 +100,7 @@ def recv_send(client_name, client_idx, data):
 # Handles receipt of ACK message
 # data = "ACK <operation message> <sender> <operation requester>"
 def recv_ACK(data):
-	global queue, ack_dict
+	global queue, ack_dict, server_send
 	buf = data.split(' ')
 	if(ack_dict[buf[1]] != None):
 		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
@@ -109,15 +109,16 @@ def recv_ACK(data):
 		print "ACK counter: " + str(ack_dict[buf[1]])
 		#if every client sent ACK, server sends ACK to the requester
 		if(ack_dict[buf[1]] == num_clients):
-			server_send = 1
 			print 'Original Requester is ' + buf[3]
 			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])]) #changed from buf[2], buf[2] to buf[3] buf[3]
 			queue[4].append(myMsg)
+			server_send = 1
 			print ' ACK message appended'
 			#REMOVE ACK ENTRY FROM THE DICTIONARY
+
 #Handles receipt of insert operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
-def recv_insert(data):
+def recv_insert(client_idx, data):
 	global queue, ack_dict
 	#print the request
 	buf = data.split(' ')
@@ -142,30 +143,34 @@ def sendThread(client_name, client_idx):
 	global server_send
 	while 1:
 		if(server_send == 1):
+			print ' server_send is 1'
 			client_idx = 4
-		# if out_queue has messages waiting to be delivered
-		if len(queue[client_idx]) != 0:
-			if(server_send == 1):
-				server_send = 0
-			# retrieve the message
-			msg = queue[client_idx][0]
+			print ' FINAL \" ACK \" about to be sent'
+		send_data(client_name, client_idx)
+#sendThread calls it to send data
+def send_data(client_name, client_idx):
+	global server_send
+	# if out_queue has messages waiting to be delivered
+	if len(queue[client_idx]) != 0:
+		# retrieve the message
+		msg = queue[client_idx][0]
+		if(client_idx == 4):
+			print 'server queue is sending data: ' + msg.msg
+			server_send = 0
+		# if time to send the message 
+		if time.time() >= (msg.regtime + float(msg.delay)):
 
-			# if time to send the message 
-			if time.time() >= (msg.regtime + float(msg.delay)):
+			# pop message from queue
+			queue[client_idx].popleft()
 
-				# pop message from queue
-				queue[client_idx].popleft()
-
-				# send the message
-				if(sock[idx(msg.dest)] == None):
-					print 'INVALID MSG>DEST IS ' + msg.dest
-					sys.exit()
-				if(sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source) == None):
-					print 'Sent \"' + str(msg.msg) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
-				else:
-					print 'message send failure'
-
-
+			# send the message
+			if(sock[idx(msg.dest)] == None):
+				print 'INVALID MSG>DEST IS ' + msg.dest
+				return
+			if(sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source) == None):
+				print 'Sent \"' + str(msg.msg) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
+			else:
+				print 'message send failure'
 # Client receiving thread
 def clientThread(conn, unique):
 	global sock, delay, ack_dict, server_send
@@ -200,7 +205,7 @@ def clientThread(conn, unique):
 
 		#if insert operation should be executed
 		if(buf[0] == "insert"):
-			recv_Insert(data)
+			recv_insert(client_idx, data)
 		#if update operation should be executed
 		elif(buf[0] == "update"):
 			recv_update(data)

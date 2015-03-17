@@ -38,15 +38,12 @@ ACK from client to server:
 ACK from server to client
 "ACK <operation message>"
 
-*************
-format of ACK message from client to central server
-
-"ACK <operation> <sender> <requester>"
-format of ACK message from server to client
-"ACK "
 ********************cmd_in_progress Format*************
 
 "command key"
 
 Linearizibility PROBLEM:
 One operation of insert is blocking future send requests
+
+server_send is never 1 in sendThread.
+	It's probably being reset to 0 before reaching sendThread

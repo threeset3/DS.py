@@ -52,7 +52,7 @@ def client_recv(remote_ip):
 							print 'insert linearizibility model'
 							client_replica[buf[1]] = buf[2]
 							if(client_replica[buf[1]] != None):
-								print 'insert new key SUCCESS!; New value is ' + client_replica[buf[1]]
+								print 'insert new key SUCCESS!; New value for key ' + buf[1] +' is ' + client_replica[buf[1]]
 								#send acknowledgment
 								send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
 							print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
