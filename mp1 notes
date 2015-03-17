@@ -25,20 +25,28 @@ Accept input files
 
 insert / update:
 "insert/update <key> <value> <model> <source> <dest>"
+
 get:
 "get <key> <model> <source> <dest>"
+
 delete:
 "delete <key> <source> <dest>"
-ACK:
-"ACK <requested operation message>"
+
+ACK from client to server:
+"ACK <requested operation message> <sender> <operation requester>"
+
+ACK from server to client
+"ACK <operation message>"
 
 *************
-Server will receive ACKs from different operations --> need a way to differentiate the ACKs
+format of ACK message from client to central server
 
-	-- dict{"message_id" : "ACK_counter"}
-Problem
-	Final ACK is being sent to all the clients instead of just the requester
-
+"ACK <operation> <sender> <requester>"
+format of ACK message from server to client
+"ACK "
 ********************cmd_in_progress Format*************
 
 "command key"
+
+Linearizibility PROBLEM:
+One operation of insert is blocking future send requests

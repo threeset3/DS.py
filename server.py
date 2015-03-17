@@ -20,7 +20,7 @@ delay = [0] * 4
 # key = ack_id, value = ack_counter
 ack_dict = {}
 server_send = 0
-
+num_clients = 0
 # message class
 class Msg:
 	def __init__(self, msg, source, dest, delay):
@@ -80,6 +80,63 @@ def parse_config():
 	print delay
 	print "-- Server_port: %s" % server_port
 
+#Handles receipt of send request
+def recv_send(client_name, client_idx, data):
+	global queue
+	buf = data.split(' ')
+	# print receipt and explode for processing
+	print 'Received \"' + data + '\" from ' + client_name + ', Max delay is ' + delay[client_idx] + ' s, ' + ' system time is ' + str(datetime.datetime.now())
+
+	# build message object
+	myMsg = Msg(buf[1], client_name, buf[2], delay[idx(buf[2])]) # delay[client_index] changed to buf[2] because client_index is sender's index
+
+	# if sent to self, no delay
+	if buf[2] == client_name:
+		myMsg.delay = 0
+
+	# attach msg to ORIGIN/SENDER's queue
+	queue[client_idx].append(myMsg)
+
+# Handles receipt of ACK message
+# data = "ACK <operation message> <sender> <operation requester>"
+def recv_ACK(data):
+	global queue, ack_dict
+	buf = data.split(' ')
+	if(ack_dict[buf[1]] != None):
+		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
+		#keep track of the number of ACKs received for a given operation
+		ack_dict[buf[1]] = ack_dict[buf[1]] + 1
+		print "ACK counter: " + str(ack_dict[buf[1]])
+		#if every client sent ACK, server sends ACK to the requester
+		if(ack_dict[buf[1]] == num_clients):
+			server_send = 1
+			print 'Original Requester is ' + buf[3]
+			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])]) #changed from buf[2], buf[2] to buf[3] buf[3]
+			queue[4].append(myMsg)
+			print ' ACK message appended'
+			#REMOVE ACK ENTRY FROM THE DICTIONARY
+#Handles receipt of insert operation
+#data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
+def recv_insert(data):
+	global queue, ack_dict
+	#print the request
+	buf = data.split(' ')
+	print buf[4] + ' requested insert ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
+	# Linearizibility Model
+	if(buf[3] =="1"):
+		print 'server handling Linearizibility Insert! receiver is ' + buf[5]
+		#build operation message object: buf[4] - source ; buf[5] - dest
+		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
+
+		#use requester's queue to send message
+		queue[client_idx].append(myOpMsg)
+		#keep track of how many ACKs we get from clients + original operation requester
+		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
+
+#Handles receipt of update operation
+#data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
+def recv_update(data):
+	print 'recv_update called'
 
 def sendThread(client_name, client_idx):
 	global server_send
@@ -101,7 +158,7 @@ def sendThread(client_name, client_idx):
 
 				# send the message
 				if(sock[idx(msg.dest)] == None):
-					print 'INVALID MSG>DEST IS' + msg.dest
+					print 'INVALID MSG>DEST IS ' + msg.dest
 					sys.exit()
 				if(sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source) == None):
 					print 'Sent \"' + str(msg.msg) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
@@ -111,7 +168,9 @@ def sendThread(client_name, client_idx):
 
 # Client receiving thread
 def clientThread(conn, unique):
-	global sock, delay, ack_dict, server_send, client_name
+	global sock, delay, ack_dict, server_send
+
+	#the current client communicating with the server
 	client_name = None
 
 	while 1:
@@ -121,6 +180,8 @@ def clientThread(conn, unique):
 		# if data is identifying msg
 		if(data == 'A' or data == 'B' or data == 'C' or data == 'D'):
 			# store client name in the local scope
+			# I wanna see if client_name is being modified when it shouldn't be
+			print 'changing CLIENT name to ' + data
 			client_name = data
 
 			# calculate client idx
@@ -137,64 +198,25 @@ def clientThread(conn, unique):
 		
 		buf = data.split(' ')
 
-		#handle special operations - insert and update
-		#data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
-		if(buf[0] == "insert" or buf[0] == "update"):
-			#print the request
-			if(buf[0] == "insert"):
-				print buf[4] + ' requested insert ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
-			elif(buf[0] == "update"):
-				print buf[4] + ' requested update ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
-		
-			# Linearizibility Model
-			if(buf[3] =="1"):
-				#build operation message object: buf[4] - source ; buf[5] - dest
-				myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
-
-				#attach operation msg to all available queues
-				#change it to client_idx
-				queue[client_idx].append(myOpMsg)
-				#keep track of how many ACKs we get from clients + original operation requester
-				ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
-		
+		#if insert operation should be executed
+		if(buf[0] == "insert"):
+			recv_Insert(data)
+		#if update operation should be executed
+		elif(buf[0] == "update"):
+			recv_update(data)
 		#if a client sends ACK upon completion of a task
 		elif(buf[0] == "ACK"):
-			if(ack_dict[buf[1]] != None):
-				#keep track of the number of ACKs received for a given operation
-				ack_dict[buf[1]] = ack_dict[buf[1]] + 1
-				print ack_dict[buf[1]]
-				#if every client sent ACK, server sends ACK to the requester
-				if(ack_dict[buf[1]] == 4):
-					server_send = 1
-					print 'client_name upon ACK ' + buf[2]
-					myMsg = Msg("ACK", str(buf[2]), str(buf[2]), delay[client_idx])
-					queue[4].append(myMsg)
-					#REMOVE ACK ENTRY FROM THE DICTIONARY
-
+			recv_ACK(data)
 		# if received: send <message> <destination>
 		elif(buf[0] == "send"):
-			# print receipt and explode for processing
-			print 'Received \"' + data + '\" from ' + client_name + ', Max delay is ' + delay[client_idx] + ' s, ' + ' system time is ' + str(datetime.datetime.now())
-			buf = data.split(' ');
-
 			# check if the destination socket is registered
 			if(sock[idx(buf[2])] == None):
 				print '[[ Client ' + buf[2] + 'doesn\'t exist. Do \"run client ' + buf[2] + '\" first.]]'
 				continue
-	
-			# build message object
-			myMsg = Msg(buf[1], client_name, buf[2], delay[client_idx])
-
-			# if sent to self, no delay
-			if buf[2] == client_name:
-				myMsg.delay = 0
-
-			# attach msg to ORIGIN/SENDER's queue
-			queue[client_idx].append(myMsg)
-
+			recv_send(client_name, client_idx, data)
 
 def server():
-	global s_server, server_port, sock, server_ip
+	global s_server, server_port, sock, server_ip, num_clients
 	s_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print 'Socket created'
 		 
@@ -219,8 +241,11 @@ def server():
 		print 'Connected With '  + addr[0] + ':' + str(addr[1])
 		thread.start_new_thread(clientThread, (conn, str(addr[1])))
 
+		#keep track of the number of clients connected to server
+		num_clients = num_clients + 1
+
 	conn.close()
 	s_server.close()
-	
+
 parse_config()
 server()

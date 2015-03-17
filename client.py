@@ -44,7 +44,7 @@ def client_recv(remote_ip):
 
 					#message 'ACK' indicates end of current operation
 					if(buf[0] == "ACK"):
-						print 'received ACK for ' + str(cmd_in_progress)
+						print 'Received ACK for ' + buf[1] #buf[1] is <operation message>
 						cmd_in_progress = None
 					elif(buf[0] == "insert"):
 						#if Linearizibility model, then insert key-value to local replica and send ACK
@@ -52,10 +52,9 @@ def client_recv(remote_ip):
 							print 'insert linearizibility model'
 							client_replica[buf[1]] = buf[2]
 							if(client_replica[buf[1]] != None):
-								print 'insert new key SUCCESS!'
-								print client_replica[buf[1]]
+								print 'insert new key SUCCESS!; New value is ' + client_replica[buf[1]]
 								#send acknowledgment
-								send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3], buf[4]) #buf[4] is requester
+								send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
 							print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
 					elif(buf[0] == "update"):
 						print 'update received'
@@ -128,12 +127,11 @@ def send_handler(operation, msg_input, send_dest):
 		msg_flag = 1
 	else:
 		print("invalid destination")
-#Create a new key with the specified value
-#update key if key already exists
+
+# thread that executes special operations
 def cmd_handler(gargbage):
 	global cmd_in_progress, cmd_queue
 
-	print 'inside cmd_handler'
 	#execute only when no operation is executing and there are operations to execute
 	while(1):
 		while(cmd_in_progress == None and cmd_queue.empty()==0):
@@ -152,29 +150,36 @@ def insert_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
 	print 'insert_handler called'
 	if(model == 1): #linearizibility
-		#notify other clients to insert new key-value pair
-		# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
-		insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
-		print 'client_ID inside insert_handler is ' + client_ID
-		send_handler(command, insert_msg, 'A')
-		while(msg_flag == 1):
-			pass
-		send_handler(command, insert_msg, 'B')
-		while(msg_flag == 1):
-			pass
-		send_handler(command, insert_msg, 'C')
-		while(msg_flag == 1):
-			pass
-		send_handler(command, insert_msg, 'D')
+		insert_linearizibility(command, key, value, model)
 	elif(model == 2): #Sequential Consistency
 		print 'insert Sequential Consistency model'
 	elif(model == 3): #Eventual Consistency w=1 R=1
 		print 'insert Eventual Consistency w=1 R=1 model'
 	elif(model == 4): #Eventual Consistency w=2 R=2
 		print 'insert Eventual Consistency w=2 R=2'
+	
 	#indicate that an operation is in progress
 	cmd_in_progress = "insert " + str(key)
 	print 'cmd_in_progress inside insert_handler ' + cmd_in_progress
+
+# linearizibility model Insert Handler
+def insert_linearizibility(command, key, value, model):
+	print 'insert_linearizibility called'
+	#notify other clients to insert new key-value pair
+	# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
+	insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
+	print 'client_ID inside insert_handler is ' + client_ID
+	send_handler(command, insert_msg, 'A')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, insert_msg, 'B')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, insert_msg, 'C')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, insert_msg, 'D')
+
 #Update the value for the specified key
 def update_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
@@ -218,10 +223,20 @@ def delete_handler(command, key):
 	
 	#tell other clients to delete the given key from their local replica
 	#notify other clients to update their local replica
+	
 	send_handler(command, str(key), 'A')
+	while(msg_flag==1):
+		pass
 	send_handler(command, str(key), 'B')
+	
+	while(msg_flag==1):
+		pass
 	send_handler(command, str(key), 'C')
+	
+	while(msg_flag==1):
+		pass
 	send_handler(command, str(key), 'D')
+	
 	#indicate that an operation is in progress
 	cmd_in_progress = "delete " + str(key)
 
@@ -241,6 +256,7 @@ def init_vars():
 	recv_started = 0
 	client_ID = None
 	msg_flag = 0
+
 #Program execution starts here!
 init_vars()
 while(1):
