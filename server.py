@@ -124,9 +124,16 @@ def recv_ACK(data):
 				print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
 
 		#model 4 special case - waits for only 1 ACK
+		#buf[3] = model
 		if(buf[3] == "4"):
 			if(ack_dict[buf[1]] == 1):
-				myMsg = Msg("ACK" +' '+ buf[1], str(buf[4]), str(buf[4]), delay[idx(buf[4])])
+
+				#msg format: "ACK(0) get_key_model(1) sender(2) command(3) key(4) local_value(5) requester(6)"
+				if(buf[0] == "get"):
+					myMsg = Msg("ACK" + ' ' + buf[1] + ' ' + buf[3] + ' ' + buf[4] + ' ' + buf[5], str(buf[6]), str(buf[6]), delay[idx(buf[4])])
+				else: 
+					myMsg = Msg("ACK" +' '+ buf[1], str(buf[4]), str(buf[4]), delay[idx(buf[4])])
+
 				queue[4].append(myMsg)
 				try:
 					#make sure the dictionary is not being deleted more than once
@@ -158,8 +165,26 @@ def recv_insert(client_idx, data):
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
 def recv_update(client_idx, data):
 	recv_insert(client_idx, data)
-def recv_get(data):
+
+#Broadcast get request to other servers
+def recv_get(client_idx, data):
 	print 'recv_get called'
+	global queue, ack_dict
+	buf = data.split(' ')
+	print buf[3] + ' requested ' + buf[0] + ' ' + buf[1] + ' ' + buf[2]
+	if(int(buf[2]) > 4):
+		print 'Invalid model'
+		return
+	#build message: "get key model source"
+	myOpMsg = Msg(buf[0] +' ' + buf[1] + ' ' + buf[2] + ' '+ buf[3], buf[3], buf[4], delay[idx(buf[4])])
+
+	#use requester's queue to send message
+	queue[client_idx].append(myOpMsg)
+
+	#keep track of how many ACKs we get from clients + original operation requester
+	ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
+
+#broadcast delete requests to other servers
 def recv_delete(client_idx, data):
 	global queue
 	buf = data.split(' ')
@@ -258,7 +283,7 @@ def clientThread(conn, unique):
 				recv_update(client_idx, data)
 
 			elif(buf[0] == "get"):
-				recv_get(data)
+				recv_get(client_idx, data)
 
 			elif(buf[0] == "delete"):
 				recv_delete(client_idx, data)

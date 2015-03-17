@@ -34,12 +34,13 @@ def insert_update(mailbox):
 
 	buf = mailbox.split(' ')
 	if(client_replica.has_key(int(buf[1])) == True):
-		client_replica[int(buf[1])] = int(buf[2])
+
+		client_replica[int(buf[1])] = [int(buf[2]), time.time()]
 		print 'updating key: %d' % int(buf[1])
 
 	#if key doesn't exist AND operation is insert
 	elif(buf[0] == "insert"):
-		client_replica[int(buf[1])] = int(buf[2])
+		client_replica[int(buf[1])] = [int(buf[2]), time.time()]
 
 	#if key doesn't exist AND operation is "update"
 	elif(buf[0] == "update"):
@@ -48,6 +49,7 @@ def insert_update(mailbox):
 		return -1
 
 #If received command receipt
+# receipt of ACK indicates end of operation at the client
 def recv_insert(mailbox):
 	global client_replica
 
@@ -72,20 +74,27 @@ def recv_insert(mailbox):
 				send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3]+buf[4] + ' ' + client_ID + ' ' +buf[3], buf[4]) #buf[4] is requester
 
 	print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
+
 #if client receives request update. Update the value of the given key if the key exists in local replica
+# receipt of ACK indicates end of operation at the client
 def recv_update(mailbox):
 	recv_insert(mailbox)
 
-# receipt of ACK indicates end of operation at the client
+#handle ACK messages from central server
 def recv_ACK(mailbox):
 	global cmd_in_progress, ACK_time
 
 	buf = mailbox.split(' ')
 	print 'Received ACK for ' + buf[1] #buf[1] is <operation message>
 	ACK_time = time.time()
+
+	#if Eventual Consistency ACK to get request
+	if(buf[2] == "get"):
+		print "EVENTUAL CONSISTENCY W=2, R=2 reading for KEY " + buf[4] + ':' + '[' + buf[5] + ']'
 	cmd_in_progress = None
 
 # delete request handler
+# receipt of ACK indicates end of operation at the client
 def recv_delete(mailbox):
 	print 'recv_delete called'
 	global client_replica, cmd_in_progress
@@ -96,10 +105,39 @@ def recv_delete(mailbox):
 		del client_replica[int(buf[1])]
 		if(client_replica.has_key(int(buf[1]))== False):
 			print 'delete from local replica SUCCESS!'
-
 			#send ACK to indicate success of operation
 			send_handler("ACK", buf[0]+buf[1] + ' ' + client_ID + ' ' + buf[2], buf[2]) #buf[2] is requester
 
+
+#handle get requests
+def recv_get(mailbox):
+	global client_replica, cmd_in_progress
+	buf = mailbox.split(' ')
+
+	#Linearizibility get request
+	if(buf[2] == "1"):
+		#check if self broadcast message
+		if(buf[3] == client_ID):
+			if(client_replica.has_key(int(buf[1]))):
+				print 'LINEARIZIBILITY Model Reading for KEY %s:' % str(buf[1]) +'[' + str(client_replica[int(buf[1])])+']'
+				cmd_in_progress = None
+			else:
+				print 'Read failed. Key Not Found'
+
+	#Eventual Consistency W=2, R=2
+	elif(buf[2] == "4"):
+		#read the replica with the latest timestamp out of 2 replicas
+		if(client_replica.has_key(int(buf[1]))):
+			#send ACK to indicate success of operation
+			#msg format: "ACK(0) get_key_model(1) sender(2) command(3) key(4) local_replica(5) requester(6)"
+			if(buf[3] != client_ID):
+				send_handler("ACK", buf[0]+buf[1]+buf[2] + ' ' + client_ID + ' ' + buf[0]+' ' + buf[1] + ' ' + str(client_replica[int(buf[1])]) + ' ' + buf[3], buf[3]) 
+				cmd_in_progress = None
+		else:	
+			print 'Read failed. Key Not Found'
+
+	#Indicate end of 'get' request
+	cmd_in_progress = None
 # thread that receives messages from server
 def client_recv(remote_ip):
 	global registered, client_delay, cmd_in_progress, s_client, client_replica
@@ -123,7 +161,7 @@ def client_recv(remote_ip):
 						print 'update received'
 						recv_update(mailbox)
 					elif(buf[0] == "get"):
-						print 'get received'
+						recv_get(mailbox)
 					elif(buf[0] == "delete"):
 						recv_delete(mailbox)
 
@@ -198,14 +236,38 @@ def insert_update_handler(command, key, value, model):
 def get_handler(command, key, model):
 	global cmd_in_progress
 
-	cmd_in_progress = command + str[key] + str[model]
-	#eventual consistency with R=1 reads local replica right away
-	if(model == 3):
+	cmd_in_progress = command + str(key) + str(model)
+
+	#Linearizibility, send broadcast to everyone
+	if(model == 1 or model == 4):
+		# "insert(0) key(1) model(2) source(3) dest(4)"
+		get_request = str(key)  + ' ' + str(model) + ' ' + str(client_ID)
+		send_handler(command, get_request, 'A')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, get_request, 'B')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, get_request, 'C')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, get_request, 'D')
+
+	#Sequential consistency, immediately return value of local replica
+	if(model == 2):
 		if(client_replica.has_key(key)):
-			print 'EVENTUAL CONSISTENCY, W=1 R=1: reading for key %s:' % str(key) +'[' + str(client_replica[key])+']'
+			print 'SEQUENTIAL CONSISTENCY Reading for KEY %s:' % str(key) +'[' + str(client_replica[key])+']'
+			cmd_in_progress = None
 		else:
 			print 'Read failed. Key Not Found'
-	cmd_in_progress = None
+	
+	#eventual consistency with R=1 reads local replica right away
+	elif(model == 3):
+		if(client_replica.has_key(key)):
+			print 'EVENTUAL CONSISTENCY, W=1 R=1: reading for key %s:' % str(key) +'[' + str(client_replica[key])+']'
+			cmd_in_progress = None
+		else:
+			print 'Read failed. Key Not Found'
 #Delete info related to key from all replicas
 def delete_handler(command, key):
 	global client_replica, cmd_in_progress
@@ -229,15 +291,15 @@ def delete_handler(command, key):
 #Handles delay between commands
 #if time passed since last ACK is less than delay time, then sleep the time difference
 def delay_handler(delay_time):
-	#global ACK_time
+	global ACK_time, cmd_in_progress
 	cmd_in_progress = "delay"
-	#if(ACK_time != None):
-		#if(time.time() - ACK_time < delay_time):
-			#print '[DELAY time: %d' %time.time() - ACK_time + ']'
-			#delay_t = threading.Thread(target=delay_thread, args = (time.time()-ACK_time,))
-			#delay_t.start()
-			#delay_t.join()
-	#cmd_in_progress = None
+	if(ACK_time != None):
+		if(time.time() - ACK_time < delay_time):
+			print '[DELAY time: ' + str(delay_time - (time.time() - ACK_time)) + ']'
+			delay_t = threading.Thread(target=delay_thread, args = (delay_time - (time.time()-ACK_time),))
+			delay_t.start()
+			delay_t.join()
+	cmd_in_progress = None
 
 #thread that sends data to server	
 def client_send(remote_ip):
@@ -353,7 +415,7 @@ while(1):
 		print client_replica.values()
 	
 	elif cmd[0] == "delay":
-		cmd_tuple = cmd_struct(command = cmd[0], key = -1, value = cmd[1], model = -1)
+		cmd_tuple = cmd_struct(command = cmd[0], key = -1, value = float(cmd[1]), model = -1)
 		cmd_queue.put(cmd_tuple)
 		
 	elif cmd[0] == "quit":
