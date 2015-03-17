@@ -55,7 +55,7 @@ def recv_delete(mailbox):
 	#delete key from local replica
 	if(client_replica.has_key(buf[1])):
 		del client_replica[buf[1]]
-		if(client_replica[buf[1]] == None):
+		if(client_replica.haskey(buf[1]) == False):
 			print 'delete from local replica SUCCESS!'
 
 			#send ACK to indicate success of operation
@@ -66,7 +66,6 @@ def client_recv(remote_ip):
 	while 1:
 		try :
 			mailbox = s_client.recv(1024)
-			print 'SANITY CHECK: ' + mailbox
 			if(mailbox != None and mailbox != ""):
 				if(mailbox == "bye"):
 					print 'connection terminated'
