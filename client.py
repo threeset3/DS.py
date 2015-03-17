@@ -50,16 +50,16 @@ def recv_delete(mailbox):
 
 	print "recv_delete called"
 	buf = mailbox.split(' ')
-	print 'before delete: ' + client_replica[key]
+	print 'before delete: ' + client_replica[buf[1]]
 
 	#delete key from local replica
-	if(client_replica.has_key(key)):
-		del client_replica[key]
-		if(client_replica[key] == None):
+	if(client_replica.has_key(buf[1])):
+		del client_replica[buf[1]]
+		if(client_replica[buf[1]] == None):
 			print 'delete from local replica SUCCESS!'
 
 			#send ACK to indicate success of operation
-			send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
+			send_handler("ACK", buf[0]+buf[1] + ' ' + client_ID, buf[4]) #buf[4] is requester
 
 def client_recv(remote_ip):
 	global registered, client_delay, cmd_in_progress, s_client, client_replica

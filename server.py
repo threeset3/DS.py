@@ -21,7 +21,6 @@ delay = [0] * 4
 ack_dict = {}
 server_send = 0
 num_clients = 0
-recv_started = 0 
 # message class
 class Msg:
 	def __init__(self, msg, source, dest, delay):
@@ -141,7 +140,7 @@ def recv_insert(client_idx, data):
 			print 'before append: queue empty'
 		#use requester's queue to send message
 		queue[client_idx].append(myOpMsg)
-		mesg = queue[client_idx][0]
+		mesg = queue[client_idx][-1]
 		print 'after append: ' + mesg.msg
 		#keep track of how many ACKs we get from clients + original operation requester
 		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
@@ -204,7 +203,7 @@ def send_data(client_name, client_idx):
 				print 'message send failure'
 # Client receiving thread
 def clientThread(conn, unique):
-	global sock, delay, ack_dict, server_send, recv_started
+	global sock, delay, ack_dict, server_send
 
 	#the current client communicating with the server
 	client_name = None
@@ -216,8 +215,6 @@ def clientThread(conn, unique):
 		# if data is identifying msg
 		if(data == 'A' or data == 'B' or data == 'C' or data == 'D'):
 			# store client name in the local scope
-			# I wanna see if client_name is being modified when it shouldn't be
-			print 'changing CLIENT name to ' + data
 			client_name = data
 
 			# calculate client idx
@@ -225,13 +222,9 @@ def clientThread(conn, unique):
 
 			# store connection to global array of sockets
 			sock[client_idx] = conn
-
-			#start thread only once
-			if(recv_started == 0):
-				# start new thread for sending messages in FIFO
-				send_thread = threading.Thread(target=sendThread, args=(client_name, client_idx))
-				send_thread.start()
-				recv_started = 1
+			# start new thread for sending messages in FIFO
+			send_thread = threading.Thread(target=sendThread, args=(client_name, client_idx))
+			send_thread.start()
 
 			print unique + ' identified as ' + data
 		
