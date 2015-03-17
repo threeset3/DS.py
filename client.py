@@ -29,25 +29,40 @@ def idx(char):
 	return ord(char[0].lower()) - 98
 def recv_insert(mailbox):
 	global client_replica
+	
 	buf = mailbox.split(' ')
-	#if Linearizibility model, then insert key-value to local replica and send ACK
-	if(buf[3] == "1"):
-		print 'insert linearizibility model'
-		client_replica[buf[1]] = buf[2]
-		if(client_replica[buf[1]] != None):
-			print 'insert new key SUCCESS!; New value for key ' + buf[1] +' is ' + client_replica[buf[1]]
-			#send acknowledgment
-			send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
-		print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
-def recv_update(mailbox):
-	global client_replica
 
+	if(buf[3] == "1"):
+		print 'update linearizibility model'
+		if(client_replica.has_key(buf[1])):
+			client_replica[buf[1]] = buf[2]
+
+		#if key doesn't exist AND operation is insert
+		elif(buf[0] == "insert"):
+			client_replica[buf[1]] = buf[2]
+
+		#if key doesn't exist AND operation is "update"
+		elif(buf[0] == "update"):
+			print 'ERROR! Key: ' + buf[1] + 'doesn\'t exist'
+			return
+
+		#indicate that operation executed succesfully
+		send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3]+buf[4] + ' ' + client_ID, buf[4]) #buf[4] is requester
+		print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
+
+#if client receives request update. Update the value of the given key if the key exists in local replica
+def recv_update(mailbox):
+	recv_insert(mailbox)
+
+# receipt of ACK indicates end of operation at the client
 def recv_ACK(mailbox):
 	global cmd_in_progress
 
 	buf = mailbox.split(' ')
 	print 'Received ACK for ' + buf[1] #buf[1] is <operation message>
 	cmd_in_progress = None
+
+# delete request handler
 def recv_delete(mailbox):
 	global client_replica, cmd_in_progress
 
@@ -62,7 +77,9 @@ def recv_delete(mailbox):
 			print 'delete from local replica SUCCESS!'
 
 			#send ACK to indicate success of operation
-			send_handler("ACK", buf[0]+buf[1] + ' ' + client_ID, buf[2]) #buf[2] is requester
+			send_handler("ACK", buf[0]+buf[1]+buf[2] + ' ' + client_ID, buf[2]) #buf[2] is requester
+
+# thread that receives messages from server
 def client_recv(remote_ip):
 	global registered, client_delay, cmd_in_progress, s_client, client_replica
 	while 1:
@@ -161,27 +178,8 @@ def insert_linearizibility(command, key, value, model):
 def update_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
 	if(model == 1): #linearizibility
-		print 'insert update linearizibility model'
-		#if key exists in local replica
-		if(client_replica[key] != None):
-			print 'update_handler called'
-			print 'before update: ' + client_replica[key]
-			#update local replica
-			client_replica[key] = value
-			print 'after update: ' + client_replica[key]
-			#notify other clients to update their local replica
-			update_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
-
-			send_handler(command, update_msg, 'A')
-			while(msg_flag == 1):
-				pass
-			send_handler(command, update_msg, 'B')
-			while(msg_flag == 1):
-				pass
-			send_handler(command, update_msg, 'C')
-			while(msg_flag == 1):
-				pass
-			send_handler(command, update_msg, 'D')
+		#notify other clients to update their local replica
+		update_linearizibility(command, key, value, model)
 
 	elif(model == 2): #Sequential Consistency
 		print 'insert Sequential Consistency model'
@@ -189,9 +187,25 @@ def update_handler(command, key, value, model):
 		print 'insert Eventual Consistency w=1 R=1 model'
 	elif(model == 4): #Eventual Consistency w=2 R=2
 		print 'insert Eventual Consistency w=2 R=2'
+	else:
+		print 'Invalid model'
+		return
 	#indicate that an operation is in progress
 	cmd_in_progress = "update " + str(key)
-	print 'updated replica: ' + client_replica
+#sends broadcast message to all other clients to update their replica
+def update_linearizibility(command, key, value, model):
+	update_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
+
+	send_handler(command, update_msg, 'A')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, update_msg, 'B')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, update_msg, 'C')
+	while(msg_flag == 1):
+		pass
+	send_handler(command, update_msg, 'D')
 
 #Return the value corresponding to the given key
 def get_handler(command, key, model):

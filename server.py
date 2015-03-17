@@ -20,9 +20,7 @@ delay = [0] * 4
 
 # key = ack_id, value = ack_counter
 ack_dict = {}
-server_send = 0
 num_clients = 0
-can_modify_server_send = 1
 
 # message class
 class Msg:
@@ -103,9 +101,9 @@ def recv_send(client_name, client_idx, data):
 # Handles receipt of ACK message
 # data = "ACK <operation message> <sender> <operation requester>"
 def recv_ACK(data):
-	global queue, ack_dict, server_send, can_modify_server_send
+	global queue, ack_dict
 	buf = data.split(' ')
-	if(ack_dict[buf[1]] != None):
+	if(ack_dict.has_key(buf[1]) != None):
 		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
 		#keep track of the number of ACKs received for a given operation
 		ack_dict[buf[1]] = ack_dict[buf[1]] + 1
@@ -114,7 +112,7 @@ def recv_ACK(data):
 		#if every client sent ACK, server sends ACK to the requester
 		if(ack_dict[buf[1]] == num_clients):
 			print 'Original Requester is ' + buf[3]
-			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])]) #changed from buf[2], buf[2] to buf[3] buf[3]
+			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])])
 			queue[4].append(myMsg)
 			print ' ACK message appended'
 			#REMOVE ACK ENTRY FROM THE DICTIONARY after final ACK is sent
@@ -132,7 +130,7 @@ def recv_insert(client_idx, data):
 	global queue, ack_dict
 	#print the request
 	buf = data.split(' ')
-	print buf[4] + ' requested insert ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
+	print buf[4] + ' requested ' + buf[0] + buf[1] + ' ' + buf[2] + ' ' + buf[3]
 	
 	# Linearizibility Model
 	if(buf[3] =="1"):
@@ -145,12 +143,12 @@ def recv_insert(client_idx, data):
 		queue[client_idx].append(myOpMsg)
 
 		#keep track of how many ACKs we get from clients + original operation requester
-		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
+		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]+buf[4]] =  0
 
 #Handles receipt of update operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
-def recv_update(data):
-	print 'recv_update called'
+def recv_update(client_idx, data):
+	recv_insert(client_idx, data)
 def recv_get(data):
 	print 'recv_get called'
 def recv_delete(client_idx, data):
@@ -173,7 +171,6 @@ def recv_delete(client_idx, data):
 
 # sendThread layer that sends data
 def sendThread(client_name, client_idx):
-	global server_send, can_modify_server_send
 	while 1:
 		send_data(client_name, client_idx)
 		send_data(client_name, 4)
@@ -212,7 +209,7 @@ def send_data(client_name, client_idx):
 
 # Client receiving thread
 def clientThread(conn, unique):
-	global sock, delay, ack_dict, server_send
+	global sock, delay, ack_dict
 
 	#the current client communicating with the server
 	client_name = None
@@ -248,7 +245,7 @@ def clientThread(conn, unique):
 
 			#if update operation should be executed
 			elif(buf[0] == "update"):
-				recv_update(data)
+				recv_update(client_idx, data)
 
 			elif(buf[0] == "get"):
 				recv_get(data)
