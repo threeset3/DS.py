@@ -127,10 +127,10 @@ def recv_insert(client_idx, data):
 	global queue, ack_dict
 	#print the request
 	buf = data.split(' ')
-	print buf[4] + ' requested ' + buf[0] + buf[1] + ' ' + buf[2] + ' ' + buf[3]
+	print buf[4] + ' requested ' + buf[0] + ' ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
 	
-	# Linearizibility Model
-	if(buf[3] =="1"):
+	# Linearizibility / Sequential Model
+	if(buf[3] =="1" or buf[3] == "2"):
 
 		#build operation message object: buf[4] - source ; buf[5] - dest
 		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
@@ -294,7 +294,6 @@ def server():
 	conn.close()
 	s_server.close()
 
-
-
+#Program execution starts here!
 parse_config()
 server()

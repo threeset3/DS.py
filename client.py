@@ -27,12 +27,15 @@ def parse_config():
 # return index of socket letter
 def idx(char):
 	return ord(char[0].lower()) - 98
+
+#If received command receipt
 def recv_insert(mailbox):
 	global client_replica
 
 	buf = mailbox.split(' ')
 
-	if(buf[3] == "1"):
+	#Linearizibility / Sequential insert receipt
+	if(buf[3] == "1" or buf[3] == "2"):
 		if(client_replica.has_key(buf[1])):
 			client_replica[buf[1]] = buf[2]
 
@@ -136,10 +139,8 @@ def cmd_handler(gargbage):
 
 def insert_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
-	if(model == 1): #linearizibility
+	if(model == 1 or model == 2): #linearizibility or sequential consistency - same insert implementation
 		insert_linearizibility(command, key, value, model)
-	elif(model == 2): #Sequential Consistency
-		print 'insert Sequential Consistency model'
 	elif(model == 3): #Eventual Consistency w=1 R=1
 		print 'insert Eventual Consistency w=1 R=1 model'
 	elif(model == 4): #Eventual Consistency w=2 R=2
@@ -169,12 +170,9 @@ def insert_linearizibility(command, key, value, model):
 #Update the value for the specified key
 def update_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
-	if(model == 1): #linearizibility
+	if(model == 1 or model == 2): #linearizibility / Sequential Consistency
 		#notify other clients to update their local replica
 		update_linearizibility(command, key, value, model)
-
-	elif(model == 2): #Sequential Consistency
-		print 'insert Sequential Consistency model'
 	elif(model == 3): #Eventual Consistency w=1 R=1
 		print 'insert Eventual Consistency w=1 R=1 model'
 	elif(model == 4): #Eventual Consistency w=2 R=2
