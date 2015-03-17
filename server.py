@@ -17,7 +17,7 @@ sock = [None] * 4
 queue = [deque(), deque(), deque(), deque(), deque()]
 server_ip = None
 delay = [0] * 4
-
+flag = 0
 # key = ack_id, value = ack_counter
 ack_dict = {}
 num_clients = 0
@@ -89,7 +89,7 @@ def recv_send(client_name, client_idx, data):
 	print 'Received \"' + data + '\" from ' + client_name + ', Max delay is ' + delay[client_idx] + ' s, ' + ' system time is ' + str(datetime.datetime.now())
 
 	# build message object
-	myMsg = Msg(buf[1], client_name, buf[2], delay[idx(buf[2])]) # delay[client_idx] changed to buf[2] because client_idx is sender's index
+	myMsg = Msg(buf[1], client_name, buf[2], delay[idx(buf[2])])
 
 	# if sent to self, no delay
 	if buf[2] == client_name:
@@ -103,14 +103,17 @@ def recv_send(client_name, client_idx, data):
 def recv_ACK(data):
 	global queue, ack_dict
 	buf = data.split(' ')
-	if(ack_dict.has_key(buf[1]) != None):
-		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
-		#keep track of the number of ACKs received for a given operation
+
+	#make sure ACK id exists
+	if(ack_dict.has_key(buf[1])):
+		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[4]
+
+		#Count total number of ACKs received for the given ACK id
 		ack_dict[buf[1]] = ack_dict[buf[1]] + 1
 		
 		#if every client sent ACK, server sends ACK to the requester
 		if(ack_dict[buf[1]] == num_clients):
-			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])])
+			myMsg = Msg("ACK" +' ' + buf[1], str(buf[4]), str(buf[4]), delay[idx(buf[4])])
 			queue[4].append(myMsg)
 			#REMOVE ACK ENTRY FROM THE DICTIONARY after final ACK is sent
 			try:
@@ -120,6 +123,17 @@ def recv_ACK(data):
 			except socket.error , msg:
 				print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
 
+		#model 4 special case - waits for only 1 ACK
+		if(buf[3] == "4"):
+			if(ack_dict[buf[1]] == 1):
+				myMsg = Msg("ACK" +' '+ buf[1], str(buf[4]), str(buf[4]), delay[idx(buf[4])])
+				queue[4].append(myMsg)
+				try:
+					#make sure the dictionary is not being deleted more than once
+					if(ack_dict.has_key(buf[1])):
+						del ack_dict[buf[1]]
+				except socket.error , msg:
+					print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
 
 #Handles receipt of insert operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
@@ -128,10 +142,9 @@ def recv_insert(client_idx, data):
 	#print the request
 	buf = data.split(' ')
 	print buf[4] + ' requested ' + buf[0] + ' ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
-	
-	# Linearizibility / Sequential Model
-	#if(buf[3] =="1" or buf[3] == "2"):
-
+	if(int(buf[3]) > 4 ):
+		print 'Invalid model'
+		return
 	#build operation message object: buf[4] - source ; buf[5] - dest
 	myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
 
@@ -163,7 +176,6 @@ def recv_delete(client_idx, data):
 	#keep track of how many ACKs we get from clients + original operation requester
 	ack_dict[buf[0]+buf[1]] =  0
 
-
 # sendThread layer that sends data
 def sendThread(client_name, client_idx):
 	while 1:
@@ -172,41 +184,39 @@ def sendThread(client_name, client_idx):
 
 #sendThread calls this function to send data
 def send_data(client_name, client_idx):
-	global queue
+	global queue, flag
 	# if out_queue has messages waiting to be delivered
 
-	if len(queue[client_idx]) != 0:
-		# retrieve the message
-		try:
-			msg = queue[client_idx][0]
-		except IndexError:
-			return
-		if(msg.printed == 0):
-			print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
-			msg.printed = 1
-		# if time to send the message 
-		if time.time() >= (msg.regtime + float(msg.delay)):
-			# pop message from queue
-
-			# solution to race problem
-			if(len(queue[client_idx]) > 0):
-				queue[client_idx].popleft()
-			else:
-				#print 'Race condition avoided. Phew'
-				return
-
-			# check if client socket is registered
-			if(sock[idx(msg.dest)] == None):
-				print '[[ Invalid msg.dest of ' + msg.dest + ' not registered ]]'
-				return
-
-			# send message
+	if(not flag):
+		flag=1
+		if len(queue[client_idx]) != 0:
+			# retrieve the message
 			try:
-				sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source)
-			except socket.error , msg2:
-				print '[[ Send failed : ' + str(msg2[0]) + ' Message ' + msg2[1] + ' ]]'
-				sys.exit()
+				msg = queue[client_idx][0]
+			except IndexError:
+				return
+			if(msg.printed == 0):
+				print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
+				msg.printed = 1
+			# if time to send the message 
+			if time.time() >= (msg.regtime + float(msg.delay)):
+				# check if client socket is registered
+				if(sock[idx(msg.dest)] == None):
+					print '[[ Invalid msg.dest of ' + msg.dest + ' not registered ]]'
+					return
 
+				# send message
+				try:
+					sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source)
+				except socket.error , msg2:
+					print '[[ Send failed : ' + str(msg2[0]) + ' Message ' + msg2[1] + ' ]]'
+					sys.exit()
+				# pop message from queue
+				if(len(queue[client_idx]) > 0):
+					queue[client_idx].popleft()
+				else:
+					return
+		flag=0
 # Client receiving thread
 def clientThread(conn, unique):
 	global sock, delay, ack_dict

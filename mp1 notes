@@ -46,16 +46,6 @@ Linearizibility PROBLEM:
 One operation of insert is blocking future send requests
 
 PROBLEM:
-	insert happens only once and blocks future requests/operations
-	FOUND BUG: 
-	 	- append is not working after 1 insert finishes
 
-
-Server is not forwarding inserts sometimes. sendThread issue
-
-
-single insert_handler is sufficient.
-Type of models become important at receipt at the client
-
-
+somewhere message destination is not passed in correctly
 
