@@ -52,3 +52,10 @@ PROBLEM:
 
 
 Server is not forwarding inserts sometimes. sendThread issue
+
+
+single insert_handler is sufficient.
+Type of models become important at receipt at the client
+
+
+

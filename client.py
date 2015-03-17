@@ -28,6 +28,25 @@ def parse_config():
 def idx(char):
 	return ord(char[0].lower()) - 98
 
+#Helper insert/update
+def insert_update(mailbox):
+	global client_replica
+
+	buf = mailbox.split(' ')
+	if(client_replica.has_key(int(buf[1])) == True):
+		client_replica[int(buf[1])] = int(buf[2])
+		print 'updating key: %d' % int(buf[1])
+
+	#if key doesn't exist AND operation is insert
+	elif(buf[0] == "insert"):
+		client_replica[int(buf[1])] = int(buf[2])
+
+	#if key doesn't exist AND operation is "update"
+	elif(buf[0] == "update"):
+		print 'ERROR! Key: ' + buf[1] + 'doesn\'t exist'
+		cmd_in_progress = None
+		return -1
+
 #If received command receipt
 def recv_insert(mailbox):
 	global client_replica
@@ -36,22 +55,18 @@ def recv_insert(mailbox):
 
 	#Linearizibility / Sequential insert receipt
 	if(buf[3] == "1" or buf[3] == "2"):
-		if(client_replica.has_key(buf[1])):
-			client_replica[buf[1]] = buf[2]
-
-		#if key doesn't exist AND operation is insert
-		elif(buf[0] == "insert"):
-			client_replica[buf[1]] = buf[2]
-
-		#if key doesn't exist AND operation is "update"
-		elif(buf[0] == "update"):
-			print 'ERROR! Key: ' + buf[1] + 'doesn\'t exist'
+		if(insert_update(mailbox) == -1):
 			return
-
 		#indicate that operation executed succesfully
 		send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3]+buf[4] + ' ' + client_ID, buf[4]) #buf[4] is requester
-		print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
-
+	
+	#Eventual Consistency, W = 1, R=1
+	elif(buf[3] == "3"):
+		#make sure it's not self-broadcast message
+		if(buf[4] != client_ID):
+			if(insert_update(mailbox) == -1):
+				return
+	print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
 #if client receives request update. Update the value of the given key if the key exists in local replica
 def recv_update(mailbox):
 	recv_insert(mailbox)
@@ -128,74 +143,42 @@ def cmd_handler(gargbage):
 	while(1):
 		while(cmd_in_progress == None and cmd_queue.empty()==0):
 			top_command = cmd_queue.get()
-			if(top_command.command == "insert"):
-				insert_handler(top_command[0], int(top_command[1]), int(top_command[2]), int(top_command[3]))
-			elif(top_command.command == "update"):
-				update_handler(top_command[0], int(top_command[1]), int(top_command[2]), int(top_command[3]))
+			cmd_queue.task_done()
+			if(top_command.command == "insert" or top_command.command == "update"):
+				insert_update_handler(top_command[0], int(top_command[1]), int(top_command[2]), int(top_command[3]))
 			elif(top_command.command == "get"):
 				get_handler(int(top_command.key), int(top_command.model))
 			elif(top_command.command == "delete"):
 				delete_handler(top_command.command, int(top_command.key))
 
-def insert_handler(command, key, value, model):
-	global client_replica, client_ID, cmd_in_progress
-	if(model == 1 or model == 2): #linearizibility or sequential consistency - same insert implementation
-		insert_linearizibility(command, key, value, model)
-	elif(model == 3): #Eventual Consistency w=1 R=1
-		print 'insert Eventual Consistency w=1 R=1 model'
-	elif(model == 4): #Eventual Consistency w=2 R=2
-		print 'insert Eventual Consistency w=2 R=2'
+#if command "insert" should execute
+def insert_update_handler(command, key, value, model):
+	global cmd_in_progress
+
+	if(model == 1 or model == 2 or model == 3):
+		if(model == 3):
+			#insert key-value to local replica and we're done with the operation
+			insert_update(command+' '+str(key)+' '+str(value)+' '+str(model))
+			cmd_in_progress = None
+		else:
+			#indicate that an operation is in progress
+			cmd_in_progress = "insert " + str(key)
+		#notify other clients to insert new key-value pair
+		# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
+		insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
+		send_handler(command, insert_msg, 'A')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, insert_msg, 'B')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, insert_msg, 'C')
+		while(msg_flag == 1):
+			pass
+		send_handler(command, insert_msg, 'D')
 	else:
 		print 'Invalid input for model'
 		return
-	#indicate that an operation is in progress
-	cmd_in_progress = "insert " + str(key)
-
-# linearizibility model Insert Handler
-def insert_linearizibility(command, key, value, model):
-	#notify other clients to insert new key-value pair
-	# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
-	insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
-	send_handler(command, insert_msg, 'A')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, insert_msg, 'B')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, insert_msg, 'C')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, insert_msg, 'D')
-
-#Update the value for the specified key
-def update_handler(command, key, value, model):
-	global client_replica, client_ID, cmd_in_progress
-	if(model == 1 or model == 2): #linearizibility / Sequential Consistency
-		#notify other clients to update their local replica
-		update_linearizibility(command, key, value, model)
-	elif(model == 3): #Eventual Consistency w=1 R=1
-		print 'insert Eventual Consistency w=1 R=1 model'
-	elif(model == 4): #Eventual Consistency w=2 R=2
-		print 'insert Eventual Consistency w=2 R=2'
-	else:
-		print 'Invalid model'
-		return
-	#indicate that an operation is in progress
-	cmd_in_progress = "update " + str(key)
-#sends broadcast message to all other clients to update their replica
-def update_linearizibility(command, key, value, model):
-	update_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
-
-	send_handler(command, update_msg, 'A')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, update_msg, 'B')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, update_msg, 'C')
-	while(msg_flag == 1):
-		pass
-	send_handler(command, update_msg, 'D')
 
 #Return the value corresponding to the given key
 def get_handler(command, key, model):
@@ -333,6 +316,7 @@ while(1):
 	
 	elif cmd[0] == "show-all":
 		print client_replica
+		print client_replica.values()
 	
 	elif cmd[0] == "delay":
 		delay_t = threading.Thread(target=delay_thread, args = (cmd[1],))

@@ -30,7 +30,7 @@ class Msg:
 		self.regtime = time.time()
 		self.delay = float(delay) * random.random()
 		self.source = source
-
+		self.printed = 0
 # return index of socket letter
 def idx(char):
 	if char == None:
@@ -130,16 +130,16 @@ def recv_insert(client_idx, data):
 	print buf[4] + ' requested ' + buf[0] + ' ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
 	
 	# Linearizibility / Sequential Model
-	if(buf[3] =="1" or buf[3] == "2"):
+	#if(buf[3] =="1" or buf[3] == "2"):
 
-		#build operation message object: buf[4] - source ; buf[5] - dest
-		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
+	#build operation message object: buf[4] - source ; buf[5] - dest
+	myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
 
-		#use requester's queue to send message
-		queue[client_idx].append(myOpMsg)
+	#use requester's queue to send message
+	queue[client_idx].append(myOpMsg)
 
-		#keep track of how many ACKs we get from clients + original operation requester
-		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]+buf[4]] =  0
+	#keep track of how many ACKs we get from clients + original operation requester
+	ack_dict[buf[0]+buf[1]+buf[2]+buf[3]+buf[4]] =  0
 
 #Handles receipt of update operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
@@ -177,7 +177,11 @@ def send_data(client_name, client_idx):
 
 	if len(queue[client_idx]) != 0:
 		# retrieve the message
-		msg = queue[client_idx][0]
+		if(len(queue[client_idx]) > 0):
+			msg = queue[client_idx][0]
+			if(msg.printed == 0):
+				print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
+				msg.printed = 1
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
 			# pop message from queue
@@ -195,11 +199,11 @@ def send_data(client_name, client_idx):
 				return
 
 			# send message
-			if(sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source) == None):
-				print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
-			else:
-				print 'message send failure'
-
+			try:
+				sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source)
+			except socket.error , msg2:
+				print '[[ Send failed : ' + str(msg2[0]) + ' Message ' + msg2[1] + ' ]]'
+				sys.exit()
 
 # Client receiving thread
 def clientThread(conn, unique):
