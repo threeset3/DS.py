@@ -107,14 +107,11 @@ def recv_ACK(data):
 		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
 		#keep track of the number of ACKs received for a given operation
 		ack_dict[buf[1]] = ack_dict[buf[1]] + 1
-		print "ACK counter: " + str(ack_dict[buf[1]])
 		
 		#if every client sent ACK, server sends ACK to the requester
 		if(ack_dict[buf[1]] == num_clients):
-			print 'Original Requester is ' + buf[3]
 			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])])
 			queue[4].append(myMsg)
-			print ' ACK message appended'
 			#REMOVE ACK ENTRY FROM THE DICTIONARY after final ACK is sent
 			try:
 				#make sure the dictionary is not being deleted more than once
@@ -134,7 +131,6 @@ def recv_insert(client_idx, data):
 	
 	# Linearizibility Model
 	if(buf[3] =="1"):
-		print 'server handling Linearizibility Insert! receiver is ' + buf[5]
 
 		#build operation message object: buf[4] - source ; buf[5] - dest
 		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
@@ -153,7 +149,6 @@ def recv_get(data):
 	print 'recv_get called'
 def recv_delete(client_idx, data):
 	global queue
-	print 'recv_delete called'
 	buf = data.split(' ')
 
 	#show the request
@@ -186,14 +181,13 @@ def send_data(client_name, client_idx):
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
 			# pop message from queue
-			print "queue length: " + str(len(queue[client_idx]))
 
 			# solution to race problem
 			if(len(queue[client_idx]) > 0):
 				queue[client_idx].popleft()
 			else:
-				print 'tried to pop empty queue'
-				print 'message was supposed to be: ' + msg.msg
+				#print 'Race condition avoided. Phew'
+				return
 
 			# check if client socket is registered
 			if(sock[idx(msg.dest)] == None):

@@ -29,11 +29,10 @@ def idx(char):
 	return ord(char[0].lower()) - 98
 def recv_insert(mailbox):
 	global client_replica
-	
+
 	buf = mailbox.split(' ')
 
 	if(buf[3] == "1"):
-		print 'update linearizibility model'
 		if(client_replica.has_key(buf[1])):
 			client_replica[buf[1]] = buf[2]
 
@@ -65,10 +64,7 @@ def recv_ACK(mailbox):
 # delete request handler
 def recv_delete(mailbox):
 	global client_replica, cmd_in_progress
-
-	print "recv_delete called"
 	buf = mailbox.split(' ')
-	print 'before delete: ' + client_replica[buf[1]]
 
 	#delete key from local replica
 	if(client_replica.has_key(buf[1])):
@@ -117,7 +113,6 @@ def send_handler(operation, msg_input, send_dest):
 	dest = send_dest
 	if send_dest == 'A' or send_dest =='B' or send_dest == 'C' or send_dest == 'D':
 		message = operation + ' ' + msg_input + ' ' + send_dest
-		print 'my message: [%s' % message + ']'
 		msg_flag = 1
 	else:
 		print("invalid destination")
@@ -129,7 +124,6 @@ def cmd_handler(gargbage):
 	#execute only when no operation is executing and there are operations to execute
 	while(1):
 		while(cmd_in_progress == None and cmd_queue.empty()==0):
-			print 'cmd_handler doing job'
 			top_command = cmd_queue.get()
 			if(top_command.command == "insert"):
 				insert_handler(top_command[0], int(top_command[1]), int(top_command[2]), int(top_command[3]))
@@ -155,11 +149,9 @@ def insert_handler(command, key, value, model):
 		return
 	#indicate that an operation is in progress
 	cmd_in_progress = "insert " + str(key)
-	print 'cmd_in_progress inside insert_handler ' + cmd_in_progress
 
 # linearizibility model Insert Handler
 def insert_linearizibility(command, key, value, model):
-	print 'insert_linearizibility called'
 	#notify other clients to insert new key-value pair
 	# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
 	insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
@@ -214,7 +206,6 @@ def get_handler(command, key, model):
 #Delete info related to key from all replicas
 def delete_handler(command, key):
 	global client_replica, cmd_in_progress
-	print ' delete handler called'
 	#tell other clients to delete the given key from their local replica
 	
 	send_handler(command, str(key) + ' ' + client_ID, 'A')
