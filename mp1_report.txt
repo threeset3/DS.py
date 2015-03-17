@@ -1,0 +1,29 @@
+CS 425 MP1 Report
+
+For Joon Hyung Ahn (jahn45)
+And Tushig Ochir (ochirkh2)
+
+1. Description of implementation of the channel delays
+	We deployed a central server that acts as the communication channel between each of the nodes.
+	Each node first connects to the central server and then sends messages to other nodes by
+	sending the request to the central server. Central server than relays the request to destination
+	node with artificial delay of random amount capped at certain values for each destination node.
+
+2. Description of consistency models
+	a. Linearizability
+		Linearizability is implemented with totally ordered broadcast. Upon request for insert/update of
+		a key and a value with the linearizability model, The client sends insert messages to the central
+		server with varying destination nodes. The central server then relays the messages to respective
+		nodes and sets up an ACK counter. Upon receiving ACK from each node, ACK counter will be incremented
+		and when the counter reaches total number of nodes connected, server sends final ACK to the requester
+		that the insert oepration is complete.
+		For a read/get command with this model, we send the server a get request that will be broadcasted,
+		and upon receivinng our own request, we return the local value.			
+
+	b. Sequential consistency
+		Insert with sequential consistency model employs exact same method as the linearizability model.
+		However for the read/get command, instead of waiting for the bcast message from server, we return
+		the local copy instaneously.
+
+	c. Inconsistency repair
+				
