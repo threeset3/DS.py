@@ -172,16 +172,18 @@ def sendThread(client_name, client_idx):
 
 #sendThread calls this function to send data
 def send_data(client_name, client_idx):
-	global queue #added it
+	global queue
 	# if out_queue has messages waiting to be delivered
 
 	if len(queue[client_idx]) != 0:
 		# retrieve the message
-		if(len(queue[client_idx]) > 0):
+		try:
 			msg = queue[client_idx][0]
-			if(msg.printed == 0):
-				print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
-				msg.printed = 1
+		except IndexError:
+			return
+		if(msg.printed == 0):
+			print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
+			msg.printed = 1
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
 			# pop message from queue

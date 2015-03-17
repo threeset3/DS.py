@@ -43,7 +43,7 @@ def insert_update(mailbox):
 
 	#if key doesn't exist AND operation is "update"
 	elif(buf[0] == "update"):
-		print 'ERROR! Key: ' + buf[1] + 'doesn\'t exist'
+		print '[[ERROR! Key: ' + buf[1] + 'doesn\'t exist]]'
 		cmd_in_progress = None
 		return -1
 
@@ -147,7 +147,7 @@ def cmd_handler(gargbage):
 			if(top_command.command == "insert" or top_command.command == "update"):
 				insert_update_handler(top_command[0], int(top_command[1]), int(top_command[2]), int(top_command[3]))
 			elif(top_command.command == "get"):
-				get_handler(int(top_command.key), int(top_command.model))
+				get_handler(top_command.command, int(top_command.key), int(top_command.model))
 			elif(top_command.command == "delete"):
 				delete_handler(top_command.command, int(top_command.key))
 
@@ -156,6 +156,7 @@ def insert_update_handler(command, key, value, model):
 	global cmd_in_progress
 
 	if(model == 1 or model == 2 or model == 3):
+		#eventual consistency modifies local replica right away
 		if(model == 3):
 			#insert key-value to local replica and we're done with the operation
 			insert_update(command+' '+str(key)+' '+str(value)+' '+str(model))
@@ -182,8 +183,16 @@ def insert_update_handler(command, key, value, model):
 
 #Return the value corresponding to the given key
 def get_handler(command, key, model):
-	print 'get_handler called', cmd_in_progress
-
+	global cmd_in_progress
+	
+	cmd_in_progress = command + str[key] + str[model]
+	#eventual consistency with R=1 reads local replica right away
+	if(model == 3):
+		if(client_replica.has_key(key)):
+			print 'EVENTUAL CONSISTENCY, W=1 R=1: reading for key %s:' % str(key) +'[' + str(client_replica[key])+']'
+		else:
+			print 'Read failed. Key Not Found'
+	cmd_in_progress = None
 #Delete info related to key from all replicas
 def delete_handler(command, key):
 	global client_replica, cmd_in_progress
@@ -307,7 +316,7 @@ while(1):
 		cmd_queue.put(cmd_tuple)
 	
 	elif cmd[0] == "get" and ( cmd[1] != None and cmd[2] != None):
-		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = cmd[3])
+		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = cmd[2])
 		cmd_queue.put(cmd_tuple)
 	
 	elif cmd[0] == "delete" and cmd[1] != None:
