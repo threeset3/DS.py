@@ -182,9 +182,11 @@ def update_handler(command, key, value, model):
 	#indicate that an operation is in progress
 	cmd_in_progress = "update " + str(key)
 	print 'updated replica: ' + client_replica
+
 #Return the value corresponding to the given key
 def get_handler(command, key, model):
 	print 'get_handler called', cmd_in_progress
+
 #Delete info related to key from all replicas
 def delete_handler(command, key):
 	global client_replica, cmd_in_progress
@@ -274,30 +276,32 @@ def init_vars():
 	client_ID = None
 	msg_flag = 0
 
+def delay_thread(s):
+	time.sleep(float(s))
+
 #Program execution starts here!
 init_vars()
 while(1):
-	global client_ID, s_client, client_delay, msg_flag, server_ip, cmd_struct, cmd_queue
+	global client_ID, s_client, client_delay, msg_flag, server_ip, cmd_struct, cmd_queue, client_replica
 	userInput = raw_input('>>> ');
 	cmd = userInput.split(' ');
 	if cmd[0] == "run":
-		if cmd[1] == "client":
-			if(cmd[2] == 'A' or cmd[2] == 'B' or cmd[2] == 'C' or cmd[2] == 'D'):
-				if(registered == 1):
-					print 'already registered'
-					continue;
-				client_ID = cmd[2]
-				# parse the config file and store all the important data to global variables
-				parse_config()
-				print 'server_ip: %s' % server_ip
+		if(cmd[1] == 'A' or cmd[1] == 'B' or cmd[1] == 'C' or cmd[1] == 'D'):
+			if(registered == 1):
+				print 'already registered'
+				continue;
+			client_ID = cmd[1]
+			# parse the config file and store all the important data to global variables
+			parse_config()
+			print 'server_ip: %s' % server_ip
 
-				# thread for sending to server
-				client_s = threading.Thread(target=client_send, args = (server_ip,))
-				client_s.start()
+			# thread for sending to server
+			client_s = threading.Thread(target=client_send, args = (server_ip,))
+			client_s.start()
 
-				registered = 1
-			else:
-				print 'invalid client id'
+			registered = 1
+		else:
+			print 'invalid client id'
 	elif cmd[0] == "Send" or cmd[0] == "send" and (cmd[1] != None and cmd[2] != None):
 		send_handler(cmd[0], cmd[1], cmd[2])
 	# -----put the commands into a queue
@@ -311,6 +315,13 @@ while(1):
 	elif cmd[0] == "delete" and cmd[1] != None:
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = -1)
 		cmd_queue.put(cmd_tuple)
+	elif cmd[0] == "show-all":
+		print client_replica
+	elif cmd[0] == "delay":
+		delay_t = threading.Thread(target=delay_thread, args = (cmd[1],))
+		delay_t.start()
+		delay_t.join()
+		
 	elif cmd[0] == "quit":
 		break
 	elif userInput == "":

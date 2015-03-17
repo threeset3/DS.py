@@ -17,10 +17,13 @@ sock = [None] * 4
 queue = [deque(), deque(), deque(), deque(), deque()]
 server_ip = None
 delay = [0] * 4
+
 # key = ack_id, value = ack_counter
 ack_dict = {}
 server_send = 0
 num_clients = 0
+
+
 # message class
 class Msg:
 	def __init__(self, msg, source, dest, delay):
@@ -80,7 +83,7 @@ def parse_config():
 	print delay
 	print "-- Server_port: %s" % server_port
 
-#Handles receipt of send request
+# handles send requests
 def recv_send(client_name, client_idx, data):
 	global queue
 	buf = data.split(' ')
@@ -119,6 +122,8 @@ def recv_ACK(data):
 				del ack_dict[buf[1]]
 			except socket.error , msg:
 				print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
+
+
 #Handles receipt of insert operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
 def recv_insert(client_idx, data):
@@ -168,6 +173,8 @@ def recv_delete(client_idx, data):
 	#keep track of how many ACKs we get from clients + original operation requester
 	ack_dict[buf[0]+buf[1]] =  0
 
+
+# sendThread layer that sends data
 def sendThread(client_name, client_idx):
 	global server_send
 	while 1:
@@ -187,20 +194,21 @@ def send_data(client_name, client_idx):
 			server_send = 0
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
-
-			print 'server ready to send: ' + msg.msg
-
 			# pop message from queue
 			queue[client_idx].popleft()
 
-			# send the message
+			# check if client socket is registered
 			if(sock[idx(msg.dest)] == None):
-				print 'INVALID MSG>DEST IS ' + msg.dest
+				print '[[ Invalid msg.dest of ' + msg.dest + ' not registered ]]'
 				return
+
+			# send message
 			if(sock[idx(msg.dest)].sendall(msg.msg + ' ' + msg.source) == None):
-				print 'Sent \"' + str(msg.msg) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
+				print 'Sent \"' + str(msg.msg + ' ' + msg.source) + '\" to ' + msg.dest + '. The system time is ' + str(datetime.datetime.now())
 			else:
 				print 'message send failure'
+
+
 # Client receiving thread
 def clientThread(conn, unique):
 	global sock, delay, ack_dict, server_send
@@ -222,52 +230,66 @@ def clientThread(conn, unique):
 
 			# store connection to global array of sockets
 			sock[client_idx] = conn
+
 			# start new thread for sending messages in FIFO
 			send_thread = threading.Thread(target=sendThread, args=(client_name, client_idx))
 			send_thread.start()
 
 			print unique + ' identified as ' + data
 		
-		buf = data.split(' ')
+		# if not identifier, process message
+		else:
+			buf = data.split(' ')
 
-		#if insert operation should be executed
-		if(buf[0] == "insert"):
-			recv_insert(client_idx, data)
-		#if update operation should be executed
-		elif(buf[0] == "update"):
-			recv_update(data)
-		elif(buf[0] == "get"):
-			recv_get(data)
-		elif(buf[0] == "delete"):
-			recv_delete(client_idx, data)
-		#if a client sends ACK upon completion of a task
-		elif(buf[0] == "ACK"):
-			recv_ACK(data)
-		# if received: send <message> <destination>
-		elif(buf[0] == "send"):
-			# check if the destination socket is registered
-			if(sock[idx(buf[2])] == None):
-				print '[[ Client ' + buf[2] + 'doesn\'t exist. Do \"run client ' + buf[2] + '\" first.]]'
-				continue
-			recv_send(client_name, client_idx, data)
+			#if insert operation should be executed
+			if(buf[0] == "insert"):
+				recv_insert(client_idx, data)
+
+			#if update operation should be executed
+			elif(buf[0] == "update"):
+				recv_update(data)
+
+			elif(buf[0] == "get"):
+				recv_get(data)
+
+			elif(buf[0] == "delete"):
+				recv_delete(client_idx, data)
+
+			#if a client sends ACK upon completion of a task
+			elif(buf[0] == "ACK"):
+				recv_ACK(data)
+
+			# if received: send <message> <destination>
+			elif(buf[0] == "send"):
+
+				# make sure destination socket is registered
+				if(sock[idx(buf[2])] == None):
+					print '[[ Client ' + buf[2] + 'doesn\'t exist. Do \"run client ' + buf[2] + '\" first.]]'
+					continue
+
+				# call send handler
+				recv_send(client_name, client_idx, data)
+
+
 
 def server():
 	global s_server, server_port, sock, server_ip, num_clients
 	s_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	print 'Socket created'
-		 
-	## setup server socket
-	try:
-		if(server_port):
-			s_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-			s_server.bind((server_ip, int(server_port)))
-		else:
-			print '[[ Server port not given ]]'
-			sys.exit()
+
+	# exit if no port
+	if(not server_port):
+		print '[[ Server port not given ]]'
+		sys.exit()
+
+	try: # setup server socket
+		s_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		s_server.bind((server_ip, int(server_port)))
+	
+	# if server setup fail
 	except socket.error , msg:
 		print '[[ Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1] + ' ]]'
 		sys.exit()
-		 
+
 	print 'Socket bind complete.'
 	s_server.listen(10)
 	print 'Socket listening..'
@@ -282,6 +304,8 @@ def server():
 
 	conn.close()
 	s_server.close()
+
+
 
 parse_config()
 server()
