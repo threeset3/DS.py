@@ -22,7 +22,7 @@ delay = [0] * 4
 ack_dict = {}
 server_send = 0
 num_clients = 0
-
+can_modify_server_send = 1
 
 # message class
 class Msg:
@@ -91,7 +91,7 @@ def recv_send(client_name, client_idx, data):
 	print 'Received \"' + data + '\" from ' + client_name + ', Max delay is ' + delay[client_idx] + ' s, ' + ' system time is ' + str(datetime.datetime.now())
 
 	# build message object
-	myMsg = Msg(buf[1], client_name, buf[2], delay[idx(buf[2])]) # delay[client_index] changed to buf[2] because client_index is sender's index
+	myMsg = Msg(buf[1], client_name, buf[2], delay[idx(buf[2])]) # delay[client_idx] changed to buf[2] because client_idx is sender's index
 
 	# if sent to self, no delay
 	if buf[2] == client_name:
@@ -103,23 +103,25 @@ def recv_send(client_name, client_idx, data):
 # Handles receipt of ACK message
 # data = "ACK <operation message> <sender> <operation requester>"
 def recv_ACK(data):
-	global queue, ack_dict, server_send
+	global queue, ack_dict, server_send, can_modify_server_send
 	buf = data.split(' ')
 	if(ack_dict[buf[1]] != None):
 		print 'ACK received from ' + buf[2] + ' for Requester: ' + buf[3]
 		#keep track of the number of ACKs received for a given operation
 		ack_dict[buf[1]] = ack_dict[buf[1]] + 1
 		print "ACK counter: " + str(ack_dict[buf[1]])
+		
 		#if every client sent ACK, server sends ACK to the requester
 		if(ack_dict[buf[1]] == num_clients):
 			print 'Original Requester is ' + buf[3]
 			myMsg = Msg("ACK" +' ' + buf[1], str(buf[3]), str(buf[3]), delay[idx(buf[3])]) #changed from buf[2], buf[2] to buf[3] buf[3]
 			queue[4].append(myMsg)
-			server_send = 1
 			print ' ACK message appended'
 			#REMOVE ACK ENTRY FROM THE DICTIONARY after final ACK is sent
 			try:
-				del ack_dict[buf[1]]
+				#make sure the dictionary is not being deleted more than once
+				if(ack_dict.has_key(buf[1])):
+					del ack_dict[buf[1]]
 			except socket.error , msg:
 				print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
 
@@ -131,25 +133,19 @@ def recv_insert(client_idx, data):
 	#print the request
 	buf = data.split(' ')
 	print buf[4] + ' requested insert ' + buf[1] + ' ' + buf[2] + ' ' + buf[3]
+	
 	# Linearizibility Model
 	if(buf[3] =="1"):
 		print 'server handling Linearizibility Insert! receiver is ' + buf[5]
+
 		#build operation message object: buf[4] - source ; buf[5] - dest
 		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
 
-		#TEST CODE: checking if append is working every time
-		if len(queue[client_idx]) != 0:
-			mesg = queue[client_idx][0]
-			print 'before append: ' + mesg.msg
-		else:
-			print 'before append: queue empty'
 		#use requester's queue to send message
 		queue[client_idx].append(myOpMsg)
-		mesg = queue[client_idx][-1]
-		print 'after append: ' + mesg.msg
+
 		#keep track of how many ACKs we get from clients + original operation requester
 		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
-
 
 #Handles receipt of update operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
@@ -158,6 +154,7 @@ def recv_update(data):
 def recv_get(data):
 	print 'recv_get called'
 def recv_delete(client_idx, data):
+	global queue
 	print 'recv_delete called'
 	buf = data.split(' ')
 
@@ -176,26 +173,30 @@ def recv_delete(client_idx, data):
 
 # sendThread layer that sends data
 def sendThread(client_name, client_idx):
-	global server_send
+	global server_send, can_modify_server_send
 	while 1:
-		if(server_send == 1):
-			print ' server_send is 1'
-			client_idx = 4
 		send_data(client_name, client_idx)
+		send_data(client_name, 4)
 
 #sendThread calls this function to send data
 def send_data(client_name, client_idx):
-	global server_send
+	global queue #added it
 	# if out_queue has messages waiting to be delivered
+
 	if len(queue[client_idx]) != 0:
 		# retrieve the message
 		msg = queue[client_idx][0]
-		if(client_idx == 4):
-			server_send = 0
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
 			# pop message from queue
-			queue[client_idx].popleft()
+			print "queue length: " + str(len(queue[client_idx]))
+
+			# solution to race problem
+			if(len(queue[client_idx]) > 0):
+				queue[client_idx].popleft()
+			else:
+				print 'tried to pop empty queue'
+				print 'message was supposed to be: ' + msg.msg
 
 			# check if client socket is registered
 			if(sock[idx(msg.dest)] == None):
@@ -269,9 +270,6 @@ def clientThread(conn, unique):
 
 				# call send handler
 				recv_send(client_name, client_idx, data)
-
-
-
 def server():
 	global s_server, server_port, sock, server_ip, num_clients
 	s_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

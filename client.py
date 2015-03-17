@@ -39,6 +39,9 @@ def recv_insert(mailbox):
 			#send acknowledgment
 			send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
 		print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
+def recv_update(mailbox):
+	global client_replica
+
 def recv_ACK(mailbox):
 	global cmd_in_progress
 
@@ -55,12 +58,11 @@ def recv_delete(mailbox):
 	#delete key from local replica
 	if(client_replica.has_key(buf[1])):
 		del client_replica[buf[1]]
-		if(client_replica.haskey(buf[1]) == False):
+		if(client_replica.has_key(buf[1]) == False):
 			print 'delete from local replica SUCCESS!'
 
 			#send ACK to indicate success of operation
-			send_handler("ACK", buf[0]+buf[1] + ' ' + client_ID, buf[4]) #buf[4] is requester
-
+			send_handler("ACK", buf[0]+buf[1] + ' ' + client_ID, buf[2]) #buf[2] is requester
 def client_recv(remote_ip):
 	global registered, client_delay, cmd_in_progress, s_client, client_replica
 	while 1:
@@ -81,6 +83,7 @@ def client_recv(remote_ip):
 						recv_insert(mailbox)
 					elif(buf[0] == "update"):
 						print 'update received'
+						recv_update(mailbox)
 					elif(buf[0] == "get"):
 						print 'get received'
 					elif(buf[0] == "delete"):
@@ -97,7 +100,7 @@ def send_handler(operation, msg_input, send_dest):
 	dest = send_dest
 	if send_dest == 'A' or send_dest =='B' or send_dest == 'C' or send_dest == 'D':
 		message = operation + ' ' + msg_input + ' ' + send_dest
-		print 'my message: %s' % message
+		print 'my message: [%s' % message + ']'
 		msg_flag = 1
 	else:
 		print("invalid destination")
@@ -122,7 +125,6 @@ def cmd_handler(gargbage):
 
 def insert_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
-	print 'insert_handler called'
 	if(model == 1): #linearizibility
 		insert_linearizibility(command, key, value, model)
 	elif(model == 2): #Sequential Consistency
@@ -131,7 +133,9 @@ def insert_handler(command, key, value, model):
 		print 'insert Eventual Consistency w=1 R=1 model'
 	elif(model == 4): #Eventual Consistency w=2 R=2
 		print 'insert Eventual Consistency w=2 R=2'
-	
+	else:
+		print 'Invalid input for model'
+		return
 	#indicate that an operation is in progress
 	cmd_in_progress = "insert " + str(key)
 	print 'cmd_in_progress inside insert_handler ' + cmd_in_progress
@@ -142,7 +146,6 @@ def insert_linearizibility(command, key, value, model):
 	#notify other clients to insert new key-value pair
 	# "insert(0) key(1) value(2) model(3) source(4) dest(5)"
 	insert_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
-	print 'client_ID inside insert_handler is ' + client_ID
 	send_handler(command, insert_msg, 'A')
 	while(msg_flag == 1):
 		pass
@@ -168,10 +171,18 @@ def update_handler(command, key, value, model):
 			print 'after update: ' + client_replica[key]
 			#notify other clients to update their local replica
 			update_msg = str(key) + ' ' + str(value) + ' ' + str(model) + ' ' + str(client_ID)
+
 			send_handler(command, update_msg, 'A')
+			while(msg_flag == 1):
+				pass
 			send_handler(command, update_msg, 'B')
+			while(msg_flag == 1):
+				pass
 			send_handler(command, update_msg, 'C')
+			while(msg_flag == 1):
+				pass
 			send_handler(command, update_msg, 'D')
+
 	elif(model == 2): #Sequential Consistency
 		print 'insert Sequential Consistency model'
 	elif(model == 3): #Eventual Consistency w=1 R=1
@@ -232,7 +243,7 @@ def client_send(remote_ip):
 	else:
 		print("server point not found in configuration file")
 		print 'server_port: %d' % int(server_port)
-		sys.exit();
+		sys.exit()
 	if(not recv_started):
 		#thread for receiving from server
 		client_r = threading.Thread(target=client_recv, args = (server_ip,))
@@ -243,7 +254,7 @@ def client_send(remote_ip):
 		cmd_thread.start()
 		recv_started = 1
 	while 1:
-		if(message!=None):
+		if(msg_flag):
 			try :
 				#message = "command key value model source dest"
 				if(s_client.sendall(str(message)) == None):
@@ -254,7 +265,6 @@ def client_send(remote_ip):
 				print 'Send failed'
 
 			## reset the message flag			 
-			message = None
 			msg_flag = 0
 	s_client.close()
 
@@ -301,21 +311,26 @@ while(1):
 			registered = 1
 		else:
 			print 'invalid client id'
+	
 	elif cmd[0] == "Send" or cmd[0] == "send" and (cmd[1] != None and cmd[2] != None):
 		send_handler(cmd[0], cmd[1], cmd[2])
+	
 	# -----put the commands into a queue
 	elif cmd[0] == "insert" or cmd[0] == "update" and (cmd[1] != None and cmd[2] != None and cmd[3] != None):
-		print 'insert requested'
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = cmd[2], model = cmd[3])
 		cmd_queue.put(cmd_tuple)
+	
 	elif cmd[0] == "get" and ( cmd[1] != None and cmd[2] != None):
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = cmd[3])
 		cmd_queue.put(cmd_tuple)
+	
 	elif cmd[0] == "delete" and cmd[1] != None:
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = -1)
 		cmd_queue.put(cmd_tuple)
+	
 	elif cmd[0] == "show-all":
 		print client_replica
+	
 	elif cmd[0] == "delay":
 		delay_t = threading.Thread(target=delay_thread, args = (cmd[1],))
 		delay_t.start()

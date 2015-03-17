@@ -19,7 +19,7 @@ Commands
 Accept input files 
 
 
-
+https://github.com/threeset3/DS.py.git
 
 ************Message format of special operations***********
 
@@ -51,4 +51,4 @@ PROBLEM:
 	 	- append is not working after 1 insert finishes
 
 
-
+Server is not forwarding inserts sometimes. sendThread issue
