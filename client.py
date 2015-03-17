@@ -27,6 +27,39 @@ def parse_config():
 # return index of socket letter
 def idx(char):
 	return ord(char[0].lower()) - 98
+def recv_insert(mailbox):
+	global client_replica
+	buf = mailbox.split(' ')
+	#if Linearizibility model, then insert key-value to local replica and send ACK
+	if(buf[3] == "1"):
+		print 'insert linearizibility model'
+		client_replica[buf[1]] = buf[2]
+		if(client_replica[buf[1]] != None):
+			print 'insert new key SUCCESS!; New value for key ' + buf[1] +' is ' + client_replica[buf[1]]
+			#send acknowledgment
+			send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
+		print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
+def recv_ACK(mailbox):
+	global cmd_in_progress
+
+	buf = mailbox.split(' ')
+	print 'Received ACK for ' + buf[1] #buf[1] is <operation message>
+	cmd_in_progress = None
+def recv_delete(mailbox):
+	global client_replica, cmd_in_progress
+
+	print "recv_delete called"
+	buf = mailbox.split(' ')
+	print 'before delete: ' + client_replica[key]
+
+	#delete key from local replica
+	if(client_replica.has_key(key)):
+		del client_replica[key]
+		if(client_replica[key] == None):
+			print 'delete from local replica SUCCESS!'
+
+			#send ACK to indicate success of operation
+			send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
 
 def client_recv(remote_ip):
 	global registered, client_delay, cmd_in_progress, s_client, client_replica
@@ -44,79 +77,21 @@ def client_recv(remote_ip):
 
 					#message 'ACK' indicates end of current operation
 					if(buf[0] == "ACK"):
-						print 'Received ACK for ' + buf[1] #buf[1] is <operation message>
-						cmd_in_progress = None
+						recv_ACK(mailbox)
 					elif(buf[0] == "insert"):
-						#if Linearizibility model, then insert key-value to local replica and send ACK
-						if(buf[3] == "1"):
-							print 'insert linearizibility model'
-							client_replica[buf[1]] = buf[2]
-							if(client_replica[buf[1]] != None):
-								print 'insert new key SUCCESS!; New value for key ' + buf[1] +' is ' + client_replica[buf[1]]
-								#send acknowledgment
-								send_handler("ACK", buf[0]+buf[1]+buf[2]+buf[3] + ' ' + client_ID, buf[4]) #buf[4] is requester
-							print 'Received \"' + buf[0] + '\" ' + buf[1] + ' ' + buf[2] + ' ' + buf[3] + ' ' + 'from ' + buf[4] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
+						recv_insert(mailbox)
 					elif(buf[0] == "update"):
 						print 'update received'
 					elif(buf[0] == "get"):
 						print 'get received'
 					elif(buf[0] == "delete"):
-						print 'delete received'
+						recv_delete(mailbox)
 
 				#if response from a send operation
 				if(buf[0] != "insert" and buf[0] != "update" and buf[0] != "get" and buf[0] != "delete"):
 					print 'Received \"' + buf[0] + '\" ' + 'from ' + buf[1] + ', Max delay is ' + client_delay + 's' + ' system time is ' + str(datetime.datetime.now())
 		except socket.error:
 			print 'receive failed'
-
-def client_send(remote_ip):
-	print 'Running client..'
-	global s_client, server_port, client_ID, msg_flag, message, recv_started, dest
-	try:
-		#create an AF_INET, STREAM socket (TCP)
-		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	except socket.error, msg:
-		print 'Failed to create socket. Error code: ' + str(msg[0]) + ' , Error message : ' + msg[1]
-		sys.exit();
-
-	print 'Client Socket Created'
-	if(int(server_port)):
-		s_client.connect((remote_ip , int(server_port)))
-		print 'Socket Connected to ' + remote_ip
-
-		#register client to the server
-		if(s_client.sendall(client_ID)==None):
-			print '%s connected to server' % client_ID
-		else:
-			print 'client registration incomplete'
-	else:
-		print("server point not found in configuration file")
-		print 'server_port: %d' % int(server_port)
-		sys.exit();
-	if(not recv_started):
-		#thread for receiving from server
-		client_r = threading.Thread(target=client_recv, args = (server_ip,))
-		client_r.start()
-
-		#thread for executing operations
-		cmd_thread = threading.Thread(target=cmd_handler, args= (1,))
-		cmd_thread.start()
-		recv_started = 1
-	while 1:
-		if(message!=None):
-			try :
-				#message = "command key value model source dest"
-				if(s_client.sendall(str(message)) == None):
-					print 'Sent \"' + str(message) + '\" to client ' + str(dest) + '. The system time is ' + str(datetime.datetime.now())
-				else:
-					print 'Send failed'
-			except socket.error:
-				print 'Send failed'
-
-			## reset the message flag			 
-			message = None
-			msg_flag = 0
-	s_client.close()
 
 def send_handler(operation, msg_input, send_dest):
 	global msg_flag, msg_queue, msg_struct, message, dest
@@ -144,7 +119,7 @@ def cmd_handler(gargbage):
 			elif(top_command.command == "get"):
 				get_handler(int(top_command.key), int(top_command.model))
 			elif(top_command.command == "delete"):
-				delete_handler(int(top_command.key))
+				delete_handler(top_command.command, int(top_command.key))
 
 def insert_handler(command, key, value, model):
 	global client_replica, client_ID, cmd_in_progress
@@ -213,32 +188,74 @@ def get_handler(command, key, model):
 #Delete info related to key from all replicas
 def delete_handler(command, key):
 	global client_replica, cmd_in_progress
-	print "delete_handler called"
-	print 'before delete: ' + client_replica[key]
-	#delete key from local replica
-	if(client_replica.has_key(key)):
-		del client_replica[key]
-		if(client_replica[key] == None):
-			print 'delete from local replica SUCCESS!'
-	
+	print ' delete handler called'
 	#tell other clients to delete the given key from their local replica
-	#notify other clients to update their local replica
 	
-	send_handler(command, str(key), 'A')
+	send_handler(command, str(key) + ' ' + client_ID, 'A')
 	while(msg_flag==1):
 		pass
-	send_handler(command, str(key), 'B')
-	
-	while(msg_flag==1):
-		pass
-	send_handler(command, str(key), 'C')
+	send_handler(command, str(key) + ' ' + client_ID, 'B')
 	
 	while(msg_flag==1):
 		pass
-	send_handler(command, str(key), 'D')
+	send_handler(command, str(key) + ' ' + client_ID, 'C')
+	
+	while(msg_flag==1):
+		pass
+	send_handler(command, str(key) + ' ' + client_ID, 'D')
 	
 	#indicate that an operation is in progress
 	cmd_in_progress = "delete " + str(key)
+
+#thread that sends data to server	
+def client_send(remote_ip):
+	print 'Running client..'
+	global s_client, server_port, client_ID, msg_flag, message, recv_started, dest
+	try:
+		#create an AF_INET, STREAM socket (TCP)
+		s_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	except socket.error, msg:
+		print 'Failed to create socket. Error code: ' + str(msg[0]) + ' , Error message : ' + msg[1]
+		sys.exit();
+
+	print 'Client Socket Created'
+	if(int(server_port)):
+		s_client.connect((remote_ip , int(server_port)))
+		print 'Socket Connected to ' + remote_ip
+
+		#register client to the server
+		if(s_client.sendall(client_ID)==None):
+			print '%s connected to server' % client_ID
+		else:
+			print 'client registration incomplete'
+	else:
+		print("server point not found in configuration file")
+		print 'server_port: %d' % int(server_port)
+		sys.exit();
+	if(not recv_started):
+		#thread for receiving from server
+		client_r = threading.Thread(target=client_recv, args = (server_ip,))
+		client_r.start()
+
+		#thread for executing operations
+		cmd_thread = threading.Thread(target=cmd_handler, args= (1,))
+		cmd_thread.start()
+		recv_started = 1
+	while 1:
+		if(message!=None):
+			try :
+				#message = "command key value model source dest"
+				if(s_client.sendall(str(message)) == None):
+					print 'Sent \"' + str(message) + '\" to client ' + str(dest) + '. The system time is ' + str(datetime.datetime.now())
+				else:
+					print 'Send failed'
+			except socket.error:
+				print 'Send failed'
+
+			## reset the message flag			 
+			message = None
+			msg_flag = 0
+	s_client.close()
 
 def init_vars():
 	global client_replica, server_port, registered, server_ip, message, cmd_queue
@@ -289,10 +306,10 @@ while(1):
 		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = cmd[2], model = cmd[3])
 		cmd_queue.put(cmd_tuple)
 	elif cmd[0] == "get" and ( cmd[1] != None and cmd[2] != None):
-		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], model = cmd[3])
+		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = cmd[3])
 		cmd_queue.put(cmd_tuple)
 	elif cmd[0] == "delete" and cmd[1] != None:
-		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1])
+		cmd_tuple = cmd_struct(command = cmd[0], key = cmd[1], value = -1, model = -1)
 		cmd_queue.put(cmd_tuple)
 	elif cmd[0] == "quit":
 		break

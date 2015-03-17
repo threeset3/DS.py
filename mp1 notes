@@ -45,5 +45,10 @@ ACK from server to client
 Linearizibility PROBLEM:
 One operation of insert is blocking future send requests
 
-server_send is never 1 in sendThread.
-	It's probably being reset to 0 before reaching sendThread
+PROBLEM:
+	insert happens only once and blocks future requests/operations
+	FOUND BUG: 
+	 	- append is not working after 1 insert finishes
+
+
+

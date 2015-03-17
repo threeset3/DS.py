@@ -21,6 +21,7 @@ delay = [0] * 4
 ack_dict = {}
 server_send = 0
 num_clients = 0
+recv_started = 0 
 # message class
 class Msg:
 	def __init__(self, msg, source, dest, delay):
@@ -114,8 +115,11 @@ def recv_ACK(data):
 			queue[4].append(myMsg)
 			server_send = 1
 			print ' ACK message appended'
-			#REMOVE ACK ENTRY FROM THE DICTIONARY
-
+			#REMOVE ACK ENTRY FROM THE DICTIONARY after final ACK is sent
+			try:
+				del ack_dict[buf[1]]
+			except socket.error , msg:
+				print "ack dict remove entry failed, error code: " + msg[0] + ' Message:' + msg[1]
 #Handles receipt of insert operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
 def recv_insert(client_idx, data):
@@ -129,15 +133,41 @@ def recv_insert(client_idx, data):
 		#build operation message object: buf[4] - source ; buf[5] - dest
 		myOpMsg = Msg(buf[0] +' '+buf[1]+' '+buf[2]+' '+buf[3], buf[4], buf[5], delay[idx(buf[5])])
 
+		#TEST CODE: checking if append is working every time
+		if len(queue[client_idx]) != 0:
+			mesg = queue[client_idx][0]
+			print 'before append: ' + mesg.msg
+		else:
+			print 'before append: queue empty'
 		#use requester's queue to send message
 		queue[client_idx].append(myOpMsg)
+		mesg = queue[client_idx][0]
+		print 'after append: ' + mesg.msg
 		#keep track of how many ACKs we get from clients + original operation requester
 		ack_dict[buf[0]+buf[1]+buf[2]+buf[3]] =  0
+
 
 #Handles receipt of update operation
 #data = "command(0) key(1) value(2) model(3) source(4) dest(5)"
 def recv_update(data):
 	print 'recv_update called'
+def recv_get(data):
+	print 'recv_get called'
+def recv_delete(client_idx, data):
+	print 'recv_delete called'
+	buf = data.split(' ')
+
+	#show the request
+	print buf[2] + ' requested delete ' + buf[1]
+
+	#build operation message object: buf[2] - source ; buf[3] - dest
+	myOpMsg = Msg(buf[0] +' '+buf[1], buf[2], buf[3], delay[idx(buf[3])])
+	
+	#use requester's queue to send message
+	queue[client_idx].append(myOpMsg)
+
+	#keep track of how many ACKs we get from clients + original operation requester
+	ack_dict[buf[0]+buf[1]] =  0
 
 def sendThread(client_name, client_idx):
 	global server_send
@@ -145,9 +175,9 @@ def sendThread(client_name, client_idx):
 		if(server_send == 1):
 			print ' server_send is 1'
 			client_idx = 4
-			print ' FINAL \" ACK \" about to be sent'
 		send_data(client_name, client_idx)
-#sendThread calls it to send data
+
+#sendThread calls this function to send data
 def send_data(client_name, client_idx):
 	global server_send
 	# if out_queue has messages waiting to be delivered
@@ -155,10 +185,11 @@ def send_data(client_name, client_idx):
 		# retrieve the message
 		msg = queue[client_idx][0]
 		if(client_idx == 4):
-			print 'server queue is sending data: ' + msg.msg
 			server_send = 0
 		# if time to send the message 
 		if time.time() >= (msg.regtime + float(msg.delay)):
+
+			print 'server ready to send: ' + msg.msg
 
 			# pop message from queue
 			queue[client_idx].popleft()
@@ -173,7 +204,7 @@ def send_data(client_name, client_idx):
 				print 'message send failure'
 # Client receiving thread
 def clientThread(conn, unique):
-	global sock, delay, ack_dict, server_send
+	global sock, delay, ack_dict, server_send, recv_started
 
 	#the current client communicating with the server
 	client_name = None
@@ -195,9 +226,12 @@ def clientThread(conn, unique):
 			# store connection to global array of sockets
 			sock[client_idx] = conn
 
-			# start new thread for sending messages in FIFO
-			send_thread = threading.Thread(target=sendThread, args=(client_name, client_idx))
-			send_thread.start()
+			#start thread only once
+			if(recv_started == 0):
+				# start new thread for sending messages in FIFO
+				send_thread = threading.Thread(target=sendThread, args=(client_name, client_idx))
+				send_thread.start()
+				recv_started = 1
 
 			print unique + ' identified as ' + data
 		
@@ -209,6 +243,10 @@ def clientThread(conn, unique):
 		#if update operation should be executed
 		elif(buf[0] == "update"):
 			recv_update(data)
+		elif(buf[0] == "get"):
+			recv_get(data)
+		elif(buf[0] == "delete"):
+			recv_delete(client_idx, data)
 		#if a client sends ACK upon completion of a task
 		elif(buf[0] == "ACK"):
 			recv_ACK(data)
